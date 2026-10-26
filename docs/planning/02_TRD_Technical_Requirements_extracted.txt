@@ -1,0 +1,98 @@
+AI Business Operating System — TRD
+Technical Requirements Document | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Recommended Stack
+Mobile frontend: Flutter + Dart.
+Architecture: feature-first structure with UI, ViewModel/state, repository and service separation; complex workflows ke liye use-case/domain layer.
+Navigation: go_router. State management: Riverpod (decision to confirm during setup; Flutter docs dependency injection ke liye Provider recommend karti hain, is liye team familiarity ke mutabiq final choose hoga).
+Backend: Supabase — PostgreSQL database, Auth, Storage and Edge Functions. Reason: relational data model orders/order_items/products/stock movements ke liye natural fit hai aur SQL-based reports straightforward hain.
+AI: provider-agnostic service interface; first prototype mein vision/LLM API use ho sakti hai. API key mobile app mein nahi, server-side Edge Function ya secure backend mein rakhi jayegi.
+OCR: Android/iOS ke liye google_mlkit_text_recognition consider karein; package platform support aur language limitations test karni hongi. Alternative server-side OCR provider evaluate karein agar invoice layouts complex hon.
+Notifications: Firebase Cloud Messaging ya suitable push provider; first MVP mein in-app alerts plus local/push notifications as needed.
+Charts: Flutter-compatible chart package; PDF export package selection implementation ke waqt current maintenance/license check ke baad.
+Testing: flutter_test, integration_test, repository/service unit tests, database RLS tests and staging environment.
+2. High-Level Architecture
+Flutter UI -> ViewModel/State -> Use Cases (where useful) -> Repository interfaces -> Supabase services / Edge Functions / OCR service / AI provider.
+Database is source of truth for products, orders, stock movements and expenses. Dashboard numbers query/view/RPC se calculate hon, LLM generated numbers se nahi.
+AI request flow: app sends user question + allowed context to backend; backend validates auth/business membership, fetches minimal required facts, calls AI provider, validates structured response, then returns answer plus source references.
+Document flow: image pick/capture -> image quality check -> OCR extraction -> editable review form -> user confirms -> validated database insert.
+External action flow: AI prepares a draft/action proposal -> app previews changes -> user confirms -> backend revalidates permissions and executes idempotently -> audit event saved.
+3. Environment and Configuration
+Separate local/development, staging and production projects.
+Store AI keys and service-role/database secrets only in backend secrets manager/environment. Never commit secrets to Git.
+Client may contain only public/publishable project configuration designed for client exposure; all tables still require correct RLS and grants.
+Use migrations for database schema changes; don't rely only on manual dashboard edits.
+Use .env.example with placeholders, and .gitignore for actual secret files.
+4. APIs and Integrations
+Supabase Auth: email/password initially; social login can be added if needed.
+Supabase Postgres/Data API: CRUD with RLS policies.
+Supabase Storage: optional receipt images, with private buckets and signed URLs/access checks.
+Supabase Edge Functions: AI proxy, OCR orchestration if server-side, webhook handlers and sensitive business actions.
+LLM/Vision API: extract structured fields, draft customer replies, summarize business metrics. Validate model capabilities, current prices, retention/privacy terms and rate limits before committing.
+Google ML Kit text recognition plugin: local mobile OCR prototype; documented Android/iOS scope and script support must be considered.
+WhatsApp Business Platform: later phase only. Official onboarding, business phone, webhooks, opt-in, templates, messaging policies and pricing need to be checked before development.
+Optional payment gateway: do not lock a provider until Pakistan merchant eligibility, settlement, fees and recurring-payment support are verified.
+5. Security Requirements
+Enable RLS on every exposed business table and write explicit SELECT/INSERT/UPDATE/DELETE policies.
+Policies must verify current authenticated user belongs to the business_id in the row; don't rely only on UI hiding.
+service_role key bypasses RLS; keep it server-side only.
+Validate amounts, quantities, statuses and business membership server-side.
+Use idempotency keys or unique request IDs for order creation and stock updates.
+Private receipt bucket; avoid public URLs for sensitive files.
+Rate limit AI endpoints, set per-user usage caps and log request metadata without unnecessarily logging sensitive content.
+Create audit log entries for stock adjustments, order status changes, deletion and AI-proposed actions accepted by users.
+Test cross-business access explicitly with positive and negative RLS tests.
+6. Data and Calculation Rules
+Currency: store PKR amounts as integer paisa (or numeric decimal with a documented fixed precision); never binary floating-point for financial persistence.
+Order total = sum(quantity * unit_price) minus explicit discounts plus explicitly modeled charges/tax if included.
+Revenue recognition/reporting rules must be defined: order created, paid, delivered or refunded can mean different things. MVP must label which metric it shows.
+Gross profit estimate = net sales - cost of goods sold for sold items. Net profit estimate additionally subtracts recorded operating expenses; warn if cost/expense records are incomplete.
+Stock changes must be represented by stock_movements; current stock should be reconcilable from opening stock plus movements.
+Use timestamps in UTC in database and display in business/user timezone; initial timezone default Asia/Karachi can be configurable.
+7. Reliability and Observability
+Use structured error codes and friendly UI messages.
+Retry only safe/idempotent operations; avoid duplicate order or payment actions.
+Capture crash/errors using an appropriate tool after privacy review.
+Track AI token/usage cost, latency, failures and user feedback.
+Keep staging seed data separate from real user data.
+8. Recommended Implementation Decisions
+Choose Supabase + Postgres as initial default due to relational order/inventory/reporting requirements; reassess if offline-first or non-relational needs become dominant.
+Use server-side AI calls, never direct secret-bearing AI calls from Flutter.
+Build the first version without direct WhatsApp automation; share/copy reply drafts first.
+Start with one business per account in MVP while keeping business_id model ready for future staff/multi-business support.
+Use modular provider adapters so AI/OCR vendors can be changed without rewriting features.
+9. Official Technical References
+Flutter App Architecture:
+https://docs.flutter.dev/app-architecture/guide
+Flutter ki official guidance: UI/data separation, ViewModels, repositories aur services.
+Flutter Architecture Recommendations:
+https://docs.flutter.dev/app-architecture/recommendations
+Flutter team ki recommendations: repository pattern, dependency injection, go_router aur testing.
+Supabase Flutter Quickstart:
+https://supabase.com/docs/guides/getting-started/quickstarts/flutter
+Flutter ke sath Supabase setup aur production se pehle RLS review.
+Supabase Row Level Security:
+https://supabase.com/docs/guides/database/postgres/row-level-security
+Database mein user/business ke data ko isolate karne ke liye RLS aur grants.
+Supabase Edge Functions:
+https://supabase.com/docs/guides/functions
+Secure server-side API calls, secrets aur AI integration orchestration.
+OpenAI Images and Vision:
+https://developers.openai.com/api/docs/guides/images-vision
+Vision-capable API ko image inputs dene ke options; usage billed ho sakta hai.
+Google ML Kit Text Recognition Flutter package:
+https://pub.dev/packages/google_mlkit_text_recognition
+Mobile Flutter plugin; Android/iOS support, platform limitations note karni hain.
+WhatsApp Business Developer Hub:
+https://whatsappbusiness.com/developers/developer-hub/
+Official WhatsApp Business Platform developer resources, onboarding, policies aur pricing.
+WhatsApp Cloud API docs collection:
+https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api
+Cloud API overview, business account/phone prerequisites and API workflows.
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval

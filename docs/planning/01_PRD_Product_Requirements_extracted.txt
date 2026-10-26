@@ -1,0 +1,98 @@
+AI Business Operating System — PRD
+Product Requirements Document | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Product Overview
+AI Business Operating System ek Flutter mobile app hogi jo Pakistan ke small shops, home-based businesses aur online sellers ko apne daily business operations ek jagah manage karne mein help karegi.
+Product ka focus sirf AI chat nahi hoga. App structured business records rakhegi aur AI unhi records ki bunyaad par summaries, drafts aur suggestions degi. Financial calculations normal code/database queries se hongi, LLM se andazay laga kar nahi.
+Initial product hypothesis: chhote sellers ko orders, stock, customer replies aur daily profit ka hisaab rakhne mein friction hoti hai. Is hypothesis ko real users ke interviews aur prototype testing se validate karna zaroori hai; demand ko abhi proven claim nahi samjha jayega.
+2. Vision and Value Proposition
+Vision: small business owner ke liye ek simple digital operations assistant.
+Value proposition: 'Apne orders, stock, sales aur customers ko ek jagah manage karo; AI se repetitive kaam tez karo aur business ki situation asaani se samjho.'
+Differentiation: Pakistan-first UX, Roman Urdu/Urdu/English support, low-complexity setup, transparent calculations, human approval before external actions, aur connected workflows.
+3. Target Users
+Primary: Pakistan ke small retailers, Instagram/Facebook/WhatsApp sellers, home-based businesses aur solo entrepreneurs.
+Secondary: chhoti teams jahan owner aur 1-5 staff orders ya stock manage karte hain.
+Not initial target: enterprise ERP, complex manufacturing, tax/legal filing automation, ya fully autonomous customer messaging.
+4. Core Problems
+Orders chat messages, notebooks aur spreadsheets mein scattered rehte hain.
+Stock quantity waqt par update nahi hoti; products out-of-stock ho sakte hain.
+Sales aur expenses record na hone se actual profit samajhna mushkil hota hai.
+Customer replies baar baar manually likhne parte hain.
+Invoices/receipts se data manually enter karna slow hota hai.
+Owner ko daily summary aur next actions ka clear view nahi milta.
+5. MVP Scope — Must Have
+Authentication aur business profile setup.
+Products CRUD: name, SKU optional, category, cost price, selling price, stock quantity, low-stock threshold.
+Customer records: name, phone optional, notes; data sirf business ke andar visible.
+Orders: items, quantities, order total, payment status, fulfillment status, customer and timestamps.
+Inventory movement history: stock increase/decrease ki wajah record ho.
+Sales and expenses entry; revenue, cost of goods sold aur estimated gross profit ka transparent calculation.
+Dashboard: aaj ki sales, pending orders, low-stock products, expenses aur estimated profit.
+AI assistant: business ke stored data par sawalat, daily summary aur recommendations; source numbers show kare.
+AI customer reply draft: user message/context se draft; send karna MVP mein manual copy/share ya explicit confirmation se.
+Invoice/receipt photo OCR: extracted fields review/edit karne ke baad hi save hon.
+Basic reports: date range ke hisaab se sales, expenses aur inventory.
+Loading, empty, success, validation aur error states.
+6. Later Versions — Not MVP
+Direct WhatsApp Business Platform integration; Meta onboarding, policies, templates, webhooks aur current pricing validate karne ke baad.
+Multiple staff roles and permissions.
+Supplier/purchase orders and barcode scanning.
+Offline-first sync with conflict handling.
+Demand forecasting, automated reorder suggestions and advanced analytics.
+Subscription billing, multi-branch support and external accounting integrations.
+7. Functional Requirements
+FR-01: User account create/login/logout kar sake.
+FR-02: Har business record business_id ke sath linked ho.
+FR-03: User product create, update, archive aur stock adjust kar sake; har adjustment ki history ho.
+FR-04: User order create kare aur order items ke zariye stock movement aur financial records consistent rahen.
+FR-05: User expense record kare with category, amount, date and optional receipt.
+FR-06: Dashboard date range aur business timezone ke mutabiq metrics dikhaye.
+FR-07: AI assistant sirf authorized business data retrieve kare; doosre business ka data kabhi nahi.
+FR-08: AI numeric claims ke sath underlying period/source data show kare; missing data ho to disclose kare.
+FR-09: OCR output editable review screen par aaye; user confirmation ke baghair database mein final records create na hon.
+FR-10: User data export/delete request initiate kar sake; deletion flow related files ko bhi handle kare.
+FR-11: AI API failures, rate limits aur network errors par retry/fallback message aaye.
+8. Non-Functional Requirements
+Security: row-level authorization, server-side secret storage, least privilege, validation and audit trail for sensitive changes.
+Reliability: financial calculations deterministic hon; currency amounts integer minor units (paisa) mein store hon to floating-point errors avoid hon.
+Performance target: common list/dashboard screens normal network par 2-3 seconds ke andar load karne ka target; actual benchmark test hoga.
+Usability: first-time user basic product aur order 5 minutes ke andar create kar sake — usability test se verify karna hai.
+Localization: initial English + Roman Urdu-friendly text; Urdu RTL support later/where practical.
+Accessibility: readable text, clear labels, contrast and form validation.
+9. AI Guardrails
+AI recommendations advisory hongi; records ko update, order cancel, stock adjust ya message send karne se pehle user confirmation zaroori hai.
+AI ko financial totals calculate karne ke liye raw database data se derived trusted metrics milenge; LLM ko final arithmetic authority nahi banaya jayega.
+Unclear OCR fields ko 'review required' mark kiya jaye; missing values invent na hon.
+AI output ko structured schema mein validate kiya jaye; malformed output par safe error show ho.
+AI ko prompt injection aur untrusted customer messages se protect karne ke liye messages ko data samjha jaye, system instructions nahi.
+10. Success Metrics
+Activation: kitne new users pehle session mein business, 1 product aur 1 order add karte hain.
+Time-to-value: first useful dashboard/report tak pohanchne ka time.
+Weekly active businesses and repeat usage.
+Order entry completion rate and OCR correction rate.
+AI draft acceptance/edit rate; AI recommendations par user action rate.
+Retention: day-7 and day-30 return rate.
+Cost per active business: AI, storage, hosting and messaging cost.
+Paid conversion aur churn ko tab measure karein jab monetization launch ho.
+11. Risks and Assumptions
+Risk: owners apna existing WhatsApp/notebook workflow change na karna chahein. Mitigation: 8-12 target users se interview aur clickable prototype test.
+Risk: manual data entry zyada ho. Mitigation: quick-add, OCR review, import/export aur templates.
+Risk: AI galat profit/stock answer de. Mitigation: database-derived numbers, source display and tests.
+Risk: third-party WhatsApp integration costly/complex ho. Mitigation: MVP mein manual share/copy workflow.
+Assumption: small sellers phone par core operations manage karna pasand karenge. Isay validate karna hai.
+12. Acceptance Criteria for MVP
+New user account bana kar business setup kar sakta ho.
+User product, customer, order aur expense create/edit kar sakta ho.
+Order save hone par stock aur order totals consistent hon; duplicate submissions se duplicate stock decrement na ho.
+Dashboard totals seeded test data ke expected values se match karein.
+Business A ka user Business B ke records access nahi kar sakta — automated RLS tests pass hon.
+OCR fields user review ke baad hi save hon.
+AI answer numeric business facts ko selected date range aur source records ke sath explain kare.
+Critical flows ke unit, widget aur integration tests pass hon.
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval

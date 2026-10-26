@@ -1,0 +1,78 @@
+AI Business Operating System — App Flow
+Navigation aur User Journey | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Navigation Model
+Bottom navigation ke 5 main tabs: Home, Orders, Inventory, Insights, Settings. Global quick-action button se Add Order, Add Product, Add Expense aur Scan Receipt khul sakein.
+AI Assistant dashboard aur relevant screens se accessible hoga; woh current screen ke context ko permission ke mutabiq use kar sakta hai.
+Navigation ke liye go_router consider hoga. Back navigation predictable honi chahiye; unsaved form par confirmation aaye.
+2. First Launch and Onboarding
+App Launch -> Welcome screen -> Sign up / Log in.
+Sign up -> email verification if enabled -> Create Business Profile.
+Business profile fields: business name, business type, currency (default PKR), timezone (default Asia/Karachi), preferred language.
+Setup -> Add first product (skip allowed) -> Dashboard.
+Empty dashboard par sample/demo data optional ho; demo data clearly labeled ho aur real totals mein mix na ho.
+3. Authentication Flow
+Login screen: email/password and forgot password.
+Success -> check business membership -> Dashboard.
+Failure -> inline error, retry and password reset route.
+Logout -> clear local sensitive state -> Welcome/Login.
+4. Dashboard Flow
+Dashboard loads selected date range and business metrics.
+Metric cards: sales, recorded expenses, estimated gross/net profit (with definitions), pending orders, low-stock count.
+Tap Sales card -> Insights/Sales detail with same date range.
+Tap Pending Orders -> filtered Orders list.
+Tap Low Stock -> Inventory filtered list.
+Tap AI Daily Summary -> AI assistant response grounded in fetched metrics and linked source sections.
+Empty state -> clear CTA to add product/order/expense.
+5. Product and Inventory Flow
+Inventory tab -> search/filter/sort product list.
+Tap Add Product -> enter name, category, SKU optional, cost price, selling price, opening stock, low-stock threshold -> Save -> validate -> product detail.
+Product detail -> Edit, Adjust Stock, View Stock History, Archive.
+Adjust Stock -> choose increase/decrease, quantity, reason, note -> preview resulting quantity -> confirm -> write stock movement.
+Scan Receipt -> camera/gallery -> OCR processing -> Review Extracted Fields -> user corrects values -> Save as draft/purchase or expense depending on selected workflow.
+Low-stock alert -> product detail -> suggested reorder quantity is advisory and based on simple rules/history.
+6. Customer and Order Flow
+Orders tab -> list filters: pending, confirmed, processing, shipped, delivered, cancelled.
+Create Order -> select/create customer -> add products and quantities -> show price, discount (optional), total and stock availability -> confirm.
+Backend transaction validates stock and creates order + order items + stock movement. If insufficient stock, show clear error and don't partially save.
+Order detail -> update status, record payment status, add note, prepare customer message.
+AI reply -> choose template/context -> draft generated -> user edits -> copy/share or manually sends. Direct API sending is not MVP.
+Cancel order -> confirmation -> apply documented stock-restoration policy and audit log; avoid double restoration.
+7. Expenses and Sales Flow
+Quick Add -> Add Expense -> amount, category, date, note, optional receipt -> save.
+Sales are derived from order/payment rules documented in TRD; don't manually duplicate sales if order already contributes to sales metrics.
+Insights -> date range -> sales trend, top products, expenses by category, estimated profit -> tap chart item for underlying records.
+Export PDF/CSV only after user chooses date range and confirms included fields.
+8. AI Assistant Flow
+User opens AI Assistant and asks a question in supported language.
+App sends question plus active business context identifier to backend.
+Backend authenticates user, checks business access, fetches minimum required structured data, and sends only needed context to AI.
+AI returns answer with metric/source IDs, caveats and optional suggested actions.
+Backend validates response schema; UI shows answer, date range and links to relevant records.
+If request asks to perform an action: show action preview -> user approves -> backend revalidates -> execute -> show result and audit entry.
+If AI service fails: show retry option and preserve user question.
+9. Scan and OCR Flow
+Select Scan Receipt -> explain photo tips -> capture/select image.
+Check image file type/size and OCR availability -> extract text and candidate fields.
+Show confidence/quality indication only if the chosen OCR engine provides a meaningful measure; otherwise use 'please review' labels rather than fake confidence.
+Review screen lets user edit every extracted field; missing fields remain blank.
+User taps Save -> backend validates -> record created -> receipt stored privately if user opted in.
+Cancel or failed extraction -> image not converted to a financial record; allow retry/manual entry.
+10. Settings, Privacy and Support
+Settings: business profile, language, currency/timezone, notification preferences, AI usage, privacy, export data, delete account, help and logout.
+Deleting a business/account requires explicit confirmation and a documented retention/deletion policy for database records, files, backups and external AI provider processing.
+Staff permissions and subscription management are later-phase flows unless validated as MVP requirements.
+11. Global Error and Edge Flows
+No internet: show offline state and retry; do not claim a server write succeeded before confirmation.
+Duplicate submit: disable button while saving and use backend idempotency.
+Invalid price/quantity: inline validation and clear units.
+AI low confidence/unclear context: ask clarifying question or provide limited answer.
+Session expired: preserve safe form draft where practical and re-authenticate.
+Insufficient stock, duplicate invoice, cancelled order or partial OCR must have explicit resolution flow.
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval

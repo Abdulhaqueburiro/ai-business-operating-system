@@ -1,0 +1,90 @@
+AI Business Operating System — Implementation Plan
+Planning se Launch tak | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Delivery Approach
+Project ko small, testable milestones mein develop karna hai. Har phase ke end par demo/review aur user approval hoga.
+Sequence: discover -> define requirements -> design -> build foundation -> core workflows -> AI/OCR -> test -> pilot -> launch.
+Exact timeline solo developer ki availability, experience, chosen APIs aur testing feedback par depend karegi. Neeche effort ranges planning estimates hain, guarantee nahi.
+2. Phase 0 — Problem Validation (3-5 days)
+8-12 Pakistan-based small business owners/sellers se short interviews.
+Unse poochna: orders kahan record karte hain, stock kaise track hota hai, daily profit kaise nikalte hain, repeat kaam kya hai, current tools ki cost aur biggest frustration kya hai.
+5 common workflows observe karein; personal/customer data collect na karein unless consent ho.
+Success gate: kam az kam 5 users same important problem independently mention karein aur 3-5 users prototype try karne ko tayyar hon. Ye internal validation target hai, industry benchmark nahi.
+3. Phase 1 — Requirements and Docs (2-4 days)
+PRD, TRD, App Flow, UI/UX Brief, Backend Schema aur Implementation Plan ko review karein.
+Open questions decide karein: single vs multiple businesses, sales definition, stock rules, languages, OCR scope and MVP integrations.
+Requirements ko Must/Should/Could/Later priority dein.
+Deliverable: approved v1 docs and MVP acceptance criteria.
+4. Phase 2 — UX Prototype (3-6 days)
+Low-fidelity wireframes: onboarding, dashboard, product list/detail, add order, order detail, expense form, scan review, AI assistant and insights.
+Clickable prototype banayein (e.g. Figma or another chosen design tool).
+5 target users se usability test: add product, create order, find low stock, understand profit card.
+Deliverable: revised navigation, screen states and UI components list.
+5. Phase 3 — Technical Foundation (3-6 days)
+Flutter project setup, linting, environments, routing and state management.
+Supabase dev/staging projects, migrations, Auth and business profile.
+Repository/service interfaces and error handling.
+RLS policies and cross-business security tests before real business data.
+Deliverable: sign-in, business setup, protected data proof.
+6. Phase 4 — Core Business Workflows (1-2 weeks)
+Products and stock movement history.
+Customers and order creation/detail/status.
+Transactional stock updates and cancellation restoration.
+Expenses and deterministic sales/profit calculations.
+Dashboard, filters, search and basic charts.
+Deliverable: end-to-end business workflow works without AI.
+7. Phase 5 — AI and OCR (4-8 days)
+Build server-side AI endpoint; secure secrets and rate limits.
+Add AI assistant for predefined queries using backend-derived metrics.
+Add customer reply drafts and action proposal/approval flow.
+Add OCR prototype for receipt images, review/edit screen and manual fallback.
+Create evaluation set of representative messages/receipts (with permission and anonymized data) and measure extraction correction rate.
+Deliverable: bounded AI features with usage tracking, clear errors and no silent actions.
+8. Phase 6 — QA and Security (4-7 days)
+Unit tests for calculations, repositories and services.
+Widget tests for forms, loading/error/empty states and navigation.
+Integration tests for create order, stock decrement, cancellation restore, expense and dashboard.
+RLS tests across at least two separate test businesses.
+Test slow network, API failure, duplicate submit, unreadable invoice, invalid quantity and expired session.
+Review secret handling, storage access, privacy copy and account deletion flow.
+Deliverable: release candidate with known issues documented.
+9. Phase 7 — Closed Pilot (1-2 weeks)
+5-10 consenting businesses ko pilot mein onboard karein.
+Measure onboarding completion, time to create first order, weekly usage, OCR corrections, AI helpfulness, errors and support requests.
+Interview users after 3-7 days; remove features that add complexity without clear value.
+Deliverable: prioritized backlog based on observed use, not guesses.
+10. Phase 8 — Launch and Growth
+Prepare store listing, screenshots, privacy policy, terms, support contact and data deletion instructions.
+Set usage limits, monitoring, backups and incident response.
+Launch limited beta first; widen availability only after reliability and security checks.
+Monetization experiment: free basic tier and paid AI/analytics limits; test willingness to pay before choosing exact pricing.
+WhatsApp Business Platform, payment gateways and automated messaging are separate integration projects; verify current eligibility, pricing and policies before commitment.
+11. Release Gates
+Gate A: user problem validated.
+Gate B: docs and MVP scope approved.
+Gate C: clickable prototype passes basic usability test.
+Gate D: database RLS isolation tests pass.
+Gate E: core order/inventory/finance calculations pass tests.
+Gate F: AI outputs validated and risky actions require approval.
+Gate G: pilot feedback supports continued development.
+Gate H: privacy, support and release readiness checklist complete.
+12. Initial Backlog Priority
+P0: Auth, business setup, products, orders, stock movements, expenses, dashboard calculations, RLS.
+P1: AI daily summary, customer reply draft, receipt OCR and review.
+P2: PDF/CSV export, push notifications, supplier management, multi-staff roles.
+P3: WhatsApp Cloud API, payment integrations, forecasting and subscription billing.
+13. Risks and Mitigations
+Scope creep: MVP mein only validated essential workflows.
+AI costs: per-user quotas, caching where appropriate, smaller/cheaper models for simple tasks and usage dashboard.
+Bad AI answer: structured output, backend facts, validation and user feedback.
+Poor OCR: editable review, supported image tips and manual entry fallback.
+Security misconfiguration: RLS tests and no service-role key in client.
+Low adoption: co-design with real sellers and reduce setup friction.
+Third-party API changes: provider abstraction and integration tests.
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval

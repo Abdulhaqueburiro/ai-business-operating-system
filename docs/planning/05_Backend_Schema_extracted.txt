@@ -1,0 +1,81 @@
+AI Business Operating System — Backend Schema
+Database Design | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Database Principles
+Recommended initial database: PostgreSQL through Supabase. Business records relational hain, is liye foreign keys, transactions, constraints aur SQL aggregation useful honge.
+Har business-owned table mein business_id ho. Auth user aur business ke relation ko business_members table control karegi.
+Primary keys UUID; created_at/updated_at timestamps; monetary values integer paisa ya fixed precision numeric; currency_code explicitly store karein.
+Har exposed table par RLS and least-privilege grants configure hon. Supabase documentation ke mutabiq policies aur grants dono test karne zaroori hain.
+2. Tables and Fields
+profiles: id UUID PK references auth.users.id; display_name; preferred_language; created_at; updated_at.
+businesses: id UUID PK; name; business_type; currency_code default PKR; timezone default Asia/Karachi; created_by; created_at; updated_at; archived_at nullable.
+business_members: id UUID PK; business_id FK; user_id FK; role (owner/admin/staff); status; created_at; unique(business_id,user_id). MVP mein owner-only UI ho sakti hai, lekin model future roles support kare.
+customers: id UUID PK; business_id FK; name; phone nullable; email nullable; notes nullable; created_at; updated_at; archived_at nullable.
+products: id UUID PK; business_id FK; name; sku nullable; category nullable; cost_price_paisa; selling_price_paisa; stock_quantity numeric/decimal as appropriate; low_stock_threshold; unit; is_active; created_at; updated_at. SKU uniqueness should be scoped to business if provided.
+orders: id UUID PK; business_id FK; customer_id FK nullable; order_number; status; payment_status; currency_code; subtotal_paisa; discount_paisa; extra_charges_paisa; total_paisa; notes nullable; created_by; created_at; updated_at; cancelled_at nullable. Unique(business_id, order_number).
+order_items: id UUID PK; business_id FK; order_id FK; product_id FK; product_name_snapshot; quantity; unit_price_paisa; unit_cost_snapshot_paisa nullable; line_total_paisa; created_at. Snapshots preserve historical sale price/name if product later changes.
+stock_movements: id UUID PK; business_id FK; product_id FK; movement_type (opening, sale, restock, adjustment, return, cancellation_restore); quantity_delta; reason; reference_type nullable; reference_id nullable; created_by; created_at; idempotency_key nullable unique per business.
+expenses: id UUID PK; business_id FK; category; amount_paisa; currency_code; description nullable; expense_date; receipt_file_id nullable; created_by; created_at; updated_at.
+receipts: id UUID PK; business_id FK; storage_path; original_filename; mime_type; file_size_bytes; processing_status; extracted_data JSONB nullable; reviewed_by nullable; created_at; deleted_at nullable.
+ai_conversations: id UUID PK; business_id FK; user_id FK; title nullable; created_at; updated_at.
+ai_messages: id UUID PK; conversation_id FK; business_id FK; role (user, assistant, tool); content; model_provider; token_usage nullable; status; created_at. Sensitive content retention policy must be decided; avoid storing unnecessary raw data.
+ai_action_proposals: id UUID PK; business_id FK; user_id FK; action_type; payload JSONB; status (pending, approved, rejected, executed, failed, expired); approved_at nullable; executed_at nullable; created_at; expires_at nullable.
+audit_logs: id UUID PK; business_id FK; actor_user_id nullable; action; entity_type; entity_id; before_data JSONB nullable; after_data JSONB nullable; request_id nullable; created_at.
+notification_preferences: id UUID PK; business_id FK; user_id FK; low_stock_enabled; order_reminder_enabled; push_enabled; updated_at.
+ai_usage_events: id UUID PK; business_id FK; user_id FK; provider; model; feature; input_units nullable; output_units nullable; estimated_cost nullable; status; created_at.
+3. Relationships
+auth.users 1-to-1 profiles (optional profile row).
+users many-to-many businesses through business_members.
+businesses 1-to-many customers, products, orders, expenses, receipts, AI conversations, audit logs and usage events.
+customers 1-to-many orders (customer_id optional for walk-in sale).
+orders 1-to-many order_items; products 1-to-many order_items.
+products 1-to-many stock_movements.
+AI conversations 1-to-many AI messages.
+AI action proposals link to business/user and can reference affected entity in payload; execution must validate again.
+4. Important Constraints and Transactions
+Order creation should be one database transaction/RPC: validate business membership, validate product active/stock, create order, create items, create stock movements and update/recalculate stock consistently.
+Cancellation must be idempotent; same order cannot restore stock twice.
+Do not allow negative stock by default unless business setting explicitly permits it.
+Use check constraints for non-negative prices, valid status values and positive item quantities.
+Use unique idempotency keys for repeat network submissions.
+Order totals must be calculated server-side from validated line items, not trusted from client payload.
+Stock quantity should be reconciled against stock_movements; if cached current quantity is stored on products, update it transactionally.
+5. RLS / Access Rules
+Enable RLS on every business table.
+SELECT policy: authenticated user must be an active member of row.business_id.
+INSERT policy: authenticated user must have allowed role in business_members and business_id must be authorized.
+UPDATE/DELETE policies: check both existing row access and new row business_id; prevent moving a record from one business to another unless a controlled backend action permits it.
+Roles: owner can manage all business data; admin/staff permissions should be explicitly mapped before multi-user UI ships.
+Storage bucket private; storage policies should verify business membership and safe object paths.
+service_role key is privileged and must only exist server-side.
+Add automated tests: user A can access business A; cannot read/update/delete business B; unauthenticated access denied.
+6. Reporting Views / Queries
+Dashboard metrics should be built from documented queries/views/RPCs.
+Sales metric definition must be explicit: e.g. confirmed non-cancelled order totals or paid sales; choose one before coding.
+Expense totals sum expenses by expense_date and selected date range.
+Estimated gross profit uses order item cost snapshots and chosen sales recognition rule.
+Estimated net profit = gross profit minus recorded operating expenses; display warning if product cost or expense records are missing.
+Top products aggregate order_items under chosen completed/paid status.
+Low stock query compares current stock_quantity <= low_stock_threshold for active products.
+7. Schema Migration Plan
+Create migration 001: profiles, businesses, business_members.
+Migration 002: customers and products.
+Migration 003: orders, order_items, stock_movements plus transactional order functions.
+Migration 004: expenses, receipts and private storage policies.
+Migration 005: AI conversations/messages/action proposals/usage events.
+Migration 006: audit logs, reporting views and RLS test suite.
+Every migration should be version-controlled and tested on staging before production.
+8. Schema Decisions Still To Confirm
+Do we need multiple businesses per account in MVP?
+Will product quantity support decimal units (e.g. kg/litre) or only whole units?
+Will tax, shipping, returns and partial payments be part of MVP?
+Which event counts as a sale for dashboard reporting: order created, paid or delivered?
+How long should AI conversations and receipt images be retained?
+Will offline data entry be required in the first release?
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval

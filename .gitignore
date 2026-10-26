@@ -61,3 +61,9 @@ key.properties
 
 # Local IDE settings
 .vscode/
+
+node_modules/
+*.bak
+*.bak2
+*.old
+*.pre-business-details.bak

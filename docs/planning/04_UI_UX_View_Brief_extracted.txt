@@ -1,0 +1,75 @@
+AI Business Operating System — UI/UX View Brief
+Screen Design Brief | Roman English | Draft v0.1
+Project: AI Business Operating System | Status: Draft v0.1 | Language: Roman English
+Note: Yeh initial planning documents hain. Market demand, API pricing, vendor eligibility aur final product decisions ko implementation se pehle validate karna hoga.
+Document Control
+1. Design Direction
+Design clean, modern aur trust-building ho. Small business owner ko accountant ya software expert jaisa experience required na ho.
+Mobile-first layouts; primary actions thumb-friendly hon. Information density low rakhein; advanced details drill-down screens mein.
+Visual hierarchy: top-level metrics, urgent actions, then trends and recommendations.
+Colors semantic hon, sirf color par meaning depend na kare. Low-stock ke sath text/icon bhi show ho.
+Roman Urdu/English copy simple ho; labels consistent hon. Urdu RTL add karte waqt layout direction properly test ho.
+2. Design Tokens — Initial Proposal
+Spacing scale: 4, 8, 12, 16, 24, 32 dp.
+Corner radius: cards 12-16 dp; buttons 10-12 dp.
+Typography: clear sans-serif; screen title 24-28, section title 18-20, body 14-16, helper text at least 12-13 dp where readable.
+Primary color: deep blue/indigo; background light neutral; green for positive/complete, amber for warning, red for destructive/error. Final palette prototype testing ke baad.
+Support light theme first; dark theme later if user demand warrants.
+3. Screen: Onboarding
+Purpose: user ko product ka value quickly samjhana aur account/business setup karwana.
+Elements: app logo/name, 2-3 short benefits, Create Account, Log In, privacy summary.
+Interaction: onboarding skippable ho; permission prompts sirf us waqt jab feature use ho.
+4. Screen: Business Setup
+Fields: business name, business type, currency default PKR, timezone default Asia/Karachi, language preference.
+Show progress step, save draft and validation errors.
+Don't ask for unnecessary sensitive information.
+5. Screen: Home Dashboard
+Top: greeting + business switch/profile only if supported.
+Primary quick actions: Add Order, Add Product, Add Expense, Scan Receipt.
+Metric cards: Sales, Expenses, Estimated Profit, Pending Orders. Metric definition and selected period visible.
+Alert section: Low Stock, overdue/pending tasks.
+AI Daily Brief card: 2-3 evidence-linked insights; each insight links to relevant records.
+States: loading skeleton, empty setup checklist, normal dashboard, partial-data warning and error/retry.
+6. Screen: AI Assistant
+Chat-like interface, but business-focused. Quick prompts: 'Aaj ki sales', 'Low stock products', 'Pending orders', 'Top products this month'.
+AI responses should include date range, metric definitions and source links where appropriate.
+Suggested actions appear as draft cards with Preview/Approve buttons; no silent execution.
+Show AI usage/temporary error unobtrusively; never expose API keys or raw internal prompts.
+7. Screen: Inventory List and Product Detail
+Inventory list: search, category filter, low-stock filter, product rows with name, stock, selling price and stock status.
+Product detail: product info, stock quantity, price, recent stock movements, Edit and Adjust Stock.
+Add/Edit Product form: name required, SKU optional, category optional, cost/selling price, opening stock, threshold.
+Use numeric keyboard for price and quantity; currency label PKR visible.
+8. Screen: Scan and Review
+Camera/gallery picker with framing tips and privacy note.
+Processing state with cancel option and understandable progress text.
+Review form displays extracted fields and original image preview; uncertain fields visibly require review.
+Save button only active when required fields valid; allow manual edit and manual-entry fallback.
+9. Screen: Orders and Order Detail
+Orders list with status chips plus search/date filters.
+Order card shows order ID, customer, total, status and created date.
+Order creation is a step-by-step flow: customer -> items -> review totals -> save.
+Order detail shows items, payment status, fulfillment status, stock impact, notes and message draft action.
+Destructive actions (cancel/delete) require confirmation and explain stock/payment consequences.
+10. Screen: Expenses and Insights
+Expense form: amount, category, date, description, receipt optional.
+Insights screen: date range picker, sales trend, top products, expenses by category, gross/net estimate.
+Each chart has labels, empty state and accessible text summary; tap chart element to see records.
+Clearly label estimated profit and missing cost data; don't imply tax/accounting compliance.
+11. Screen: Settings and Privacy
+Business details, language, currency/timezone, notification preferences, AI usage, export, delete account and support.
+Explain data use in plain language; provide consent before optional third-party messaging integrations.
+Deletion must describe what will be deleted and any legally/operationally required retention.
+12. Reusable Components
+Primary/secondary/destructive buttons, text fields, currency field, status chip, metric card, product row, order card, empty state, error banner, confirmation sheet, date range picker, AI insight card and OCR field review item.
+Build components with accessibility labels and test long text, small screens, localization and large font settings.
+13. UX Research Tasks
+Test with 5-8 small business owners before polishing UI.
+Ask users to add product, create order, correct an OCR field, find pending order and explain daily profit.
+Observe completion time, errors, hesitation and whether they understand estimated profit.
+Don't assume users want AI everywhere; test whether quick actions and automation actually save time.
+
+[TABLE 1]
+Version | 0.1 — Initial research-informed draft
+Owner | Project owner / product team
+Review rule | Har major phase ke baad review aur approval
