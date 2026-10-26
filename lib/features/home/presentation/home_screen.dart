@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ai_business_os/app/supabase_connection_checker.dart';
 import 'package:ai_business_os/features/products/presentation/products_screen.dart';
 import 'package:ai_business_os/features/orders/presentation/orders_screen.dart';
+import 'package:ai_business_os/features/dashboard/presentation/dashboard_summary_card.dart';
 import 'package:ai_business_os/features/expenses/presentation/expenses_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -237,6 +238,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 12),
                       _buildBusinessDetailsCard(context),
+                      const SizedBox(height: 12),
+                      const DashboardSummaryCard(),
                       const SizedBox(height: 12),
                       _buildConnectionTestCard(context),
                       const SizedBox(height: 28),
