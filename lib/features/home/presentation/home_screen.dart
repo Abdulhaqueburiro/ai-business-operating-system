@@ -1,10 +1,11 @@
-﻿import 'package:ai_business_os/features/inventory/presentation/inventory_screen.dart';
+import 'package:ai_business_os/features/inventory/presentation/inventory_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:ai_business_os/app/supabase_connection_checker.dart';
 import 'package:ai_business_os/features/products/presentation/products_screen.dart';
 import 'package:ai_business_os/features/orders/presentation/orders_screen.dart';
+import 'package:ai_business_os/features/expenses/presentation/expenses_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -164,6 +165,12 @@ class _HomeScreenState extends State<HomeScreen> {
       opensOrders: true,
     ),
     _WorkspaceArea(
+      icon: Icons.request_quote_outlined,
+      title: 'Expenses',
+      description: 'Record business expenses such as rent, salary and supplies.',
+      opensExpenses: true,
+    ),
+    _WorkspaceArea(
       icon: Icons.payments_outlined,
       title: 'Payments and reports',
       description: 'Tools for payment tracking and operational insights.',
@@ -320,7 +327,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ),
                                             );
                                           }
-                                        : null,
+                                        : area.opensExpenses
+                                            ? () {
+                                                Navigator.of(context).push(
+                                                    MaterialPageRoute<void>(
+                                                        builder: (_) =>
+                                                            const ExpensesScreen(),
+                                                    ),
+                                                );
+                                            }
+                                            : null,
                               ),
                             ),
                         ],
@@ -398,6 +414,7 @@ class _WorkspaceArea {
     this.opensProductsPreview = false,
     this.opensInventory = false,
     this.opensOrders = false,
+    this.opensExpenses = false,
   });
 
   final IconData icon;
@@ -406,6 +423,7 @@ class _WorkspaceArea {
   final bool opensProductsPreview;
   final bool opensInventory;
   final bool opensOrders;
+  final bool opensExpenses;
 }
 
 class _WorkspaceAreaCard extends StatelessWidget {
