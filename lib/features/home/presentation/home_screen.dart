@@ -260,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'A simple foundation to get started',
+                                      'Your data lives in your database',
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleMedium
@@ -271,9 +271,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      'This starter is not connected to business '
-                                      'data. It does not show real products, '
-                                      'stock, orders, or payments.',
+                                      'Products, stock, orders and expenses are saved in '
+                                      'your business database. The dashboard above shows '
+                                      'this month from that data.',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium

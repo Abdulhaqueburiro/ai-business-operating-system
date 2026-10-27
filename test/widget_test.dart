@@ -24,7 +24,7 @@ void main() {
     expect(find.text('Your business workspace'), findsOneWidget);
     expect(find.text('Workspace areas'), findsOneWidget);
     expect(
-      find.textContaining('not connected to business data'),
+      find.textContaining('saved in your business database'),
       findsOneWidget,
     );
     expect(find.text('Products'), findsOneWidget);
