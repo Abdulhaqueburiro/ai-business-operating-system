@@ -1,4 +1,4 @@
-﻿-- Backend self-check: orders, stock, expenses, dashboard, isolation.
+-- Backend self-check: orders, stock, expenses, dashboard, isolation.
 -- Safe to run on the real database: everything happens inside one
 -- transaction that is rolled back on purpose. The run ENDS with an error
 -- that contains the test report. That error is expected.
@@ -34,11 +34,11 @@ do $t$
 declare
   ua uuid; ub uuid; ba uuid; bb uuid;
   pa uuid; pb uuid;
-  o1 uuid; o2 uuid; e1 uuid;
+  o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid;
   v text; v2 text;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
-  k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid();
+  k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid(); k4 uuid := gen_random_uuid();
   res text := '';
   err text := null;
 begin
@@ -262,6 +262,60 @@ begin
     pg_temp.val_as(ua, format($q$select count(*)::text from public.expenses where id = %L$q$, e1)) = '1'
     and pg_temp.val_as(ua, format($q$select count(*)::text from public.sales_orders where id = %L$q$, o1)) = '1');
 
+  -- ---------- CUSTOMERS ----------
+  v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Ali', '0300-1234567', 'note', %L)::text$q$, ba, k4));
+  res := res || pg_temp.l('CUSTOMER: create succeeds', v not like 'ERROR%', v);
+  c1 := v::uuid;
+  res := res || pg_temp.l('CUSTOMER: same idempotency key returns same customer',
+    pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Ali', '0300-1234567', 'note', %L)::text$q$, ba, k4)) = c1::text);
+  res := res || pg_temp.l('CUSTOMER: saved once',
+    (select count(*) = 1 from public.customers where business_id = ba and idempotency_key = k4));
+  res := res || pg_temp.l('CUSTOMER: empty name rejected',
+    pg_temp.val_as(ua, format($q$select public.create_customer(%L, '   ')::text$q$, ba)) like '%between 1 and 120%');
+  res := res || pg_temp.l('CUSTOMER: name over 120 characters rejected',
+    pg_temp.val_as(ua, format($q$select public.create_customer(%L, repeat('x', 121))::text$q$, ba)) like '%between 1 and 120%');
+  res := res || pg_temp.l('CUSTOMER: invalid phone rejected',
+    pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Bad', 'abc')::text$q$, ba)) like '%valid phone%');
+  res := res || pg_temp.l('CUSTOMER: duplicate phone in same business rejected',
+    pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Other', '0300-1234567')::text$q$, ba)) like '%already exists%');
+  res := res || pg_temp.l('CUSTOMER: same phone allowed in a different business',
+    pg_temp.val_as(ub, format($q$select public.create_customer(%L, 'ZZ Same phone', '0300-1234567')::text$q$, bb)) not like 'ERROR%');
+  res := res || pg_temp.l('CUSTOMER: other business user cannot create here',
+    pg_temp.val_as(ub, format($q$select public.create_customer(%L, 'ZZ Intruder')::text$q$, ba)) like '%not an active member%');
+
+  v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Sara', '0311-7654321')::text$q$, ba));
+  c2 := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.update_customer(%L, 'ZZ Ali Khan', '0300-1234567', 'vip')) s$q$, c1));
+  res := res || pg_temp.l('CUSTOMER: update succeeds', v = 'ok', v);
+  res := res || pg_temp.l('CUSTOMER: update changed the saved name and notes',
+    (select name = 'ZZ Ali Khan' and notes = 'vip' from public.customers where id = c1));
+  res := res || pg_temp.l('CUSTOMER: cannot update to another customer''s phone',
+    pg_temp.val_as(ua, format($q$select 'ok' from (select public.update_customer(%L, 'ZZ Sara', '0300-1234567')) s$q$, c2)) like '%already exists%');
+  res := res || pg_temp.l('CUSTOMER: other business user cannot update',
+    pg_temp.val_as(ub, format($q$select 'ok' from (select public.update_customer(%L, 'Hacked')) s$q$, c1)) like '%Customer not found%');
+  res := res || pg_temp.l('CUSTOMER: other business user cannot archive',
+    pg_temp.val_as(ub, format($q$select 'ok' from (select public.archive_customer(%L)) s$q$, c1)) like '%Customer not found%');
+
+  res := res || pg_temp.l('CUSTOMER: other business user sees none of these customers',
+    pg_temp.val_as(ub, format($q$select count(*)::text from public.customers where business_id = %L$q$, ba)) = '0');
+  res := res || pg_temp.l('CUSTOMER: owner sees own customers',
+    pg_temp.val_as(ua, format($q$select count(*)::text from public.customers where id = %L$q$, c1)) = '1');
+  res := res || pg_temp.l('CUSTOMER: client cannot insert directly',
+    pg_temp.val_as(ua, format($q$insert into public.customers(business_id, name) values (%L, 'x') returning 'x'$q$, ba)) like 'ERROR: permission denied%');
+  res := res || pg_temp.l('CUSTOMER: client cannot update directly',
+    pg_temp.val_as(ua, format($q$update public.customers set name = 'x' where id = %L returning 'x'$q$, c1)) like 'ERROR: permission denied%');
+  res := res || pg_temp.l('CUSTOMER: client cannot delete directly',
+    pg_temp.val_as(ua, format($q$delete from public.customers where id = %L returning 'x'$q$, c1)) like 'ERROR: permission denied%');
+  res := res || pg_temp.l('CUSTOMER: signed-out user cannot read or create',
+    pg_temp.val_as(null, 'select count(*)::text from public.customers') like 'ERROR%'
+    and pg_temp.val_as(null, format($q$select public.create_customer(%L, 'x')::text$q$, ba)) like 'ERROR%');
+
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.archive_customer(%L)) s$q$, c1));
+  res := res || pg_temp.l('CUSTOMER: archive succeeds', v = 'ok', v);
+  res := res || pg_temp.l('CUSTOMER: archived customer is kept, marked archived',
+    (select archived_at is not null from public.customers where id = c1));
+  v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ New owner of number', '0300-1234567')::text$q$, ba));
+  res := res || pg_temp.l('CUSTOMER: phone of an archived customer can be reused', v not like 'ERROR%', v);
   -- ---------- ONE BUSINESS PER USER ----------
   begin
     insert into public.business_members (business_id, user_id, role, status)
