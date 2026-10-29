@@ -34,7 +34,7 @@ do $t$
 declare
   ua uuid; ub uuid; ba uuid; bb uuid;
   pa uuid; pb uuid;
-  o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid;
+  o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid;
   v text; v2 text;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
@@ -316,6 +316,33 @@ begin
     (select archived_at is not null from public.customers where id = c1));
   v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ New owner of number', '0300-1234567')::text$q$, ba));
   res := res || pg_temp.l('CUSTOMER: phone of an archived customer can be reused', v not like 'ERROR%', v);
+
+  -- ---------- ORDERS LINKED TO CUSTOMERS ----------
+  v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Buyer', '0322-1111111')::text$q$, ba));
+  c3 := v::uuid;
+  v := pg_temp.val_as(ub, format($q$select public.create_customer(%L, 'ZZ Foreign', '0333-2222222')::text$q$, bb));
+  cf := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, 'Typed name', 'n', %L, %L)::text$q$, ba, items1, gen_random_uuid(), c3));
+  res := res || pg_temp.l('LINK: order with a saved customer succeeds', v not like 'ERROR%', v);
+  o3 := v::uuid;
+  res := res || pg_temp.l('LINK: order stores the customer id',
+    (select customer_id = c3 from public.sales_orders where id = o3));
+  res := res || pg_temp.l('LINK: server copies the saved name (typed name is ignored)',
+    (select customer_name = 'ZZ Buyer' from public.sales_orders where id = o3));
+  res := res || pg_temp.l('LINK: customer of another business rejected',
+    pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L)::text$q$, ba, items1, cf)) like '%Customer not found%');
+  res := res || pg_temp.l('LINK: archived customer rejected',
+    pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L)::text$q$, ba, items1, c1)) like '%Customer not found%');
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, 'Walk-in Ahmed')::text$q$, ba, items1));
+  res := res || pg_temp.l('LINK: order without a customer id still works', v not like 'ERROR%', v);
+  res := res || pg_temp.l('LINK: typed name is kept when no customer is chosen',
+    (select count(*) = 1 from public.sales_orders where business_id = ba and customer_name = 'Walk-in Ahmed' and customer_id is null));
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.archive_customer(%L)) s$q$, c3));
+  res := res || pg_temp.l('LINK: archive of the buyer succeeds', v = 'ok', v);
+  res := res || pg_temp.l('LINK: archiving the customer keeps the order''s name and link',
+    (select customer_name = 'ZZ Buyer' and customer_id = c3 from public.sales_orders where id = o3));
+  res := res || pg_temp.l('LINK: signed-out user cannot call the 6-argument create_sales_order',
+    pg_temp.val_as(null, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L)::text$q$, ba, items1, c3)) like 'ERROR%');
   -- ---------- ONE BUSINESS PER USER ----------
   begin
     insert into public.business_members (business_id, user_id, role, status)

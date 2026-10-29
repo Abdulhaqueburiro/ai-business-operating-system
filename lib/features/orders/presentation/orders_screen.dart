@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,6 +16,7 @@ String _newUuidV4() {
 
 typedef _SubmitOrder = Future<void> Function({
   required String? customerName,
+  required String? customerId,
   required String? notes,
   required List<Map<String, Object>> items,
   required String idempotencyKey,
@@ -108,6 +109,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return rows.map((row) => Map<String, dynamic>.from(row)).toList();
   }
 
+  // Saved customers are optional: if they cannot be loaded, orders can still
+  // be created with a typed name.
+  Future<List<Map<String, dynamic>>> _loadCustomers() async {
+    try {
+      final businessId = _businessId ?? await _getActiveBusinessId();
+
+      final rows = await _client
+          .from('customers')
+          .select('id, name, phone, archived_at')
+          .eq('business_id', businessId)
+          .order('name');
+
+      return rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .where((row) => row['archived_at'] == null)
+          .toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
   Future<void> _createOrder() async {
     final businessId = _businessId;
 
@@ -141,13 +163,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
       return;
     }
 
+    final customers = await _loadCustomers();
+
+    if (!mounted) return;
+
     final created = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _NewOrderDialog(
         products: products,
+        customers: customers,
         onSubmit: ({
           required customerName,
+          required customerId,
           required notes,
           required items,
           required idempotencyKey,
@@ -160,6 +188,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               'p_customer_name': customerName,
               'p_notes': notes,
               'p_idempotency_key': idempotencyKey,
+              'p_customer_id': customerId,
             },
           );
         },
@@ -333,9 +362,14 @@ class _OrderLine {
 }
 
 class _NewOrderDialog extends StatefulWidget {
-  const _NewOrderDialog({required this.products, required this.onSubmit});
+  const _NewOrderDialog({
+    required this.products,
+    required this.customers,
+    required this.onSubmit,
+  });
 
   final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> customers;
   final _SubmitOrder onSubmit;
 
   @override
@@ -347,6 +381,7 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
   final _customerController = TextEditingController();
   final _notesController = TextEditingController();
   final List<_OrderLine> _lines = [_OrderLine()];
+  String? _customerId;
 
   // One key per dialog session: a retry after a failure re-uses it, so the
   // database can never create a duplicate order.
@@ -401,7 +436,7 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
       items.add({'product_id': productId, 'quantity': quantity});
     }
 
-    final customer = _customerController.text.trim();
+    final customer = _customerId == null ? _customerController.text.trim() : '';
     final notes = _notesController.text.trim();
 
     setState(() {
@@ -412,6 +447,7 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
     try {
       await widget.onSubmit(
         customerName: customer.isEmpty ? null : customer,
+        customerId: _customerId,
         notes: notes.isEmpty ? null : notes,
         items: items,
         idempotencyKey: _idempotencyKey,
@@ -431,6 +467,12 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
         _submitting = false;
       });
     }
+  }
+
+  String _customerLabel(Map<String, dynamic> customer) {
+    final name = customer['name']?.toString() ?? '';
+    final phone = customer['phone']?.toString().trim() ?? '';
+    return phone.isEmpty ? name : '$name - $phone';
   }
 
   Widget _buildLine(int index, _OrderLine line) {
@@ -538,14 +580,43 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _customerController,
-                  enabled: !_submitting,
-                  decoration: const InputDecoration(
-                    labelText: 'Customer name (optional)',
-                    border: OutlineInputBorder(),
+                if (widget.customers.isNotEmpty) ...[
+                  DropdownButtonFormField<String?>(
+                    initialValue: _customerId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Saved customer (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('No saved customer'),
+                      ),
+                      for (final customer in widget.customers)
+                        DropdownMenuItem<String?>(
+                          value: customer['id'].toString(),
+                          child: Text(
+                            _customerLabel(customer),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _submitting
+                        ? null
+                        : (value) => setState(() => _customerId = value),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                ],
+                if (_customerId == null)
+                  TextFormField(
+                    controller: _customerController,
+                    enabled: !_submitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Customer name (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _notesController,
