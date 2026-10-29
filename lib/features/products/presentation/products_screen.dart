@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -12,6 +12,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _nameController = TextEditingController();
   final _unitController = TextEditingController();
   final _priceController = TextEditingController(text: '0');
+  final _costController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -32,6 +33,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     _nameController.dispose();
     _unitController.dispose();
     _priceController.dispose();
+    _costController.dispose();
     super.dispose();
   }
 
@@ -64,7 +66,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
       final rows = await _client
           .from('products')
-          .select('id, name, unit, price, created_at')
+          .select('id, name, unit, price, cost_price, created_at')
           .eq('business_id', businessId)
           .eq('is_active', true)
           .order('created_at', ascending: false);
@@ -91,6 +93,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final name = _nameController.text.trim();
     final unit = _unitController.text.trim();
     final price = num.tryParse(_priceController.text.trim());
+    final costText = _costController.text.trim();
+    final cost = costText.isEmpty ? null : num.tryParse(costText);
+    final costInvalid =
+        costText.isNotEmpty && (cost == null || !cost.isFinite || cost < 0);
 
     if (name.isEmpty || unit.isEmpty ||
         price == null || !price.isFinite || price < 0) {
@@ -103,6 +109,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
     if (name.isEmpty || unit.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter product name and unit.')),
+      );
+      return;
+    }
+
+    if (costInvalid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid cost price (0 or greater) or leave it empty.'),
+        ),
       );
       return;
     }
@@ -125,11 +140,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
         'name': name,
         'unit': unit,
         'price': price,
+        'cost_price': cost,
       });
 
       _nameController.clear();
       _unitController.clear();
       _priceController.text = '0';
+      _costController.clear();
 
       await _loadProducts();
 
@@ -161,6 +178,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
     final priceController = TextEditingController(
       text: product['price']?.toString() ?? '0',
+    );
+    final costController = TextEditingController(
+      text: product['cost_price']?.toString() ?? '',
     );
 
     final formKey = GlobalKey<FormState>();
@@ -213,6 +233,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: costController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Cost price (optional)',
+                  helperText: 'What you paid for one unit. Used to work out profit.',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) return null;
+                  final cost = double.tryParse(text);
+                  if (cost == null || !cost.isFinite || cost < 0) {
+                    return 'Enter a valid cost (0 or greater) or leave empty.';
+                  }
+                  return null;
+                },
+              ),
             ],
           ),
         ),
@@ -240,6 +279,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final name = nameController.text.trim();
     final unit = unitController.text.trim();
     final price = double.parse(priceController.text.trim());
+    final costText = costController.text.trim();
+    final cost = costText.isEmpty ? null : double.parse(costText);
 
     if (!mounted) return;
     setState(() => _saving = true);
@@ -247,7 +288,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     try {
       await _client
           .from('products')
-          .update({'name': name, 'unit': unit, 'price': price})
+          .update({'name': name, 'unit': unit, 'price': price, 'cost_price': cost})
           .eq('id', id)
           .eq('business_id', businessId);
 
@@ -388,6 +429,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _costController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Cost price (optional)',
+                hintText: 'What you paid for one unit',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _unitController,
             decoration: const InputDecoration(
               labelText: 'Unit label',
@@ -446,7 +497,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   title: Text(product['name'].toString()),
                   subtitle: Text(
                     '${product['unit']} \u2022 Price: '
-                    '${((product['price'] as num?) ?? 0).toStringAsFixed(2)}',
+                    '${((product['price'] as num?) ?? 0).toStringAsFixed(2)} \u2022 '
+                    '${product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}'}',
                   ),
                   trailing: Wrap(
                     spacing: 0,

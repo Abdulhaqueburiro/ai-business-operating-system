@@ -135,6 +135,14 @@ void main() {
     expect(find.text('Unit label'), findsOneWidget);
     expect(find.text('Save product'), findsOneWidget);
     expect(find.textContaining('Saved products'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Could not load products.'),
+      300,
+      scrollable: find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.byType(Scrollable),
+      ).first,
+    );
     expect(find.text('Could not load products.'), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
   });

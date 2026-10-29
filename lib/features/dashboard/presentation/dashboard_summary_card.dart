@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 String _money(num value) {
@@ -138,7 +138,8 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
 
   Widget _buildSummary(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final net = _num('net');
+    final netProfit = _num('net_profit');
+    final missingCost = _num('items_missing_cost').toInt();
     final lowItems = (_data?['low_stock_items'] as List?) ?? const [];
 
     return Column(
@@ -159,10 +160,20 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
               note: 'Recorded this month',
             ),
             _MetricTile(
-              label: 'Net (sales - expenses)',
-              value: _money(net),
-              note: 'Before cost of goods',
-              valueColor: net < 0 ? colors.error : null,
+              label: 'Cost of goods',
+              value: _money(_num('cost_of_goods')),
+              note: 'Cost of items sold',
+            ),
+            _MetricTile(
+              label: 'Gross profit',
+              value: _money(_num('gross_profit')),
+              note: 'Sales minus cost of goods',
+            ),
+            _MetricTile(
+              label: 'Net profit',
+              value: _money(netProfit),
+              note: 'Gross profit minus expenses',
+              valueColor: netProfit < 0 ? colors.error : null,
             ),
             _MetricTile(
               label: 'Pending orders',
@@ -177,6 +188,14 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
             ),
           ],
         ),
+        if (missingCost > 0) ...[
+          const SizedBox(height: 12),
+          Text(
+            '$missingCost sold item(s) have no cost price, so profit leaves '
+            'them out. Add cost prices in Products.',
+            style: TextStyle(color: colors.error),
+          ),
+        ],
         if (lowItems.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
