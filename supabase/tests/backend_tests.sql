@@ -34,7 +34,7 @@ do $t$
 declare
   ua uuid; ub uuid; ba uuid; bb uuid;
   pa uuid; pb uuid;
-  o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid;
+  o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid; o4 uuid; o5 uuid; pc uuid; d1 jsonb; items_c text;
   v text; v2 text;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
@@ -59,6 +59,11 @@ begin
   insert into public.products (business_id, name, unit, price)
     values (bb, 'ZZ other business item', 'pcs', 5) returning id into pb;
   insert into public.inventory (business_id, product_id, quantity) values (ba, pa, 5);
+  -- Real data may already use the phone numbers this test uses; free them
+  -- inside this transaction only (everything is rolled back at the end).
+  update public.customers set archived_at = now()
+   where archived_at is null
+     and phone in ('0300-1234567', '0311-7654321', '0322-1111111', '0333-2222222');
   insert into public.stock_movements (business_id, product_id, movement_type, quantity_delta, reason)
     values (ba, pa, 'opening', 5, 'test opening');
 
@@ -343,6 +348,68 @@ begin
     (select customer_name = 'ZZ Buyer' and customer_id = c3 from public.sales_orders where id = o3));
   res := res || pg_temp.l('LINK: signed-out user cannot call the 6-argument create_sales_order',
     pg_temp.val_as(null, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L)::text$q$, ba, items1, c3)) like 'ERROR%');
+
+  -- ---------- COST AND PROFIT ----------
+  insert into public.products (business_id, name, unit, price)
+    values (ba, 'ZZ no cost item', 'pcs', 50) returning id into pc;
+  insert into public.inventory (business_id, product_id, quantity) values (ba, pc, 5);
+  insert into public.stock_movements (business_id, product_id, movement_type, quantity_delta, reason)
+    values (ba, pc, 'opening', 5, 'test opening');
+  items_c := jsonb_build_array(jsonb_build_object('product_id', pc, 'quantity', 1))::text;
+
+  res := res || pg_temp.l('COST: owner can set a cost price',
+    pg_temp.val_as(ua, format($q$update public.products set cost_price = 60 where id = %L returning 'x'$q$, pa)) = 'x');
+  res := res || pg_temp.l('COST: negative cost price rejected',
+    pg_temp.val_as(ua, format($q$update public.products set cost_price = -1 where id = %L returning 'x'$q$, pa)) like 'ERROR%');
+  res := res || pg_temp.l('COST: other business user cannot change the cost',
+    pg_temp.val_as(ub, format($q$update public.products set cost_price = 1 where id = %L returning 'x'$q$, pa)) is null);
+  res := res || pg_temp.l('COST: cost price stayed 60',
+    (select cost_price = 60 from public.products where id = pa));
+
+  d1 := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb)::text$q$, ba, items1));
+  o4 := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, o4));
+  res := res || pg_temp.l('COST: confirm of an order with a known cost succeeds', v = 'ok', v);
+  res := res || pg_temp.l('COST: confirm locks the cost (60) onto the items',
+    (select bool_and(unit_cost = 60) from public.sales_order_items where order_id = o4));
+  d := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('PROFIT: cost of goods rose by 120 (2 x 60)',
+    (d->>'cost_of_goods')::numeric = (d1->>'cost_of_goods')::numeric + 120);
+  res := res || pg_temp.l('PROFIT: gross profit rose by 80 (200 - 120)',
+    (d->>'gross_profit')::numeric = (d1->>'gross_profit')::numeric + 80);
+  res := res || pg_temp.l('PROFIT: net profit rose by 80 and old net unchanged formula',
+    (d->>'net_profit')::numeric = (d1->>'net_profit')::numeric + 80
+    and (d->>'net')::numeric = (d1->>'net')::numeric + 200);
+  res := res || pg_temp.l('PROFIT: no item is missing a cost yet',
+    (d->>'items_missing_cost')::int = (d1->>'items_missing_cost')::int);
+
+  res := res || pg_temp.l('COST: changing the cost later works',
+    pg_temp.val_as(ua, format($q$update public.products set cost_price = 70 where id = %L returning 'x'$q$, pa)) = 'x');
+  res := res || pg_temp.l('COST: old order keeps the locked cost (still 60)',
+    (select bool_and(unit_cost = 60) from public.sales_order_items where order_id = o4));
+
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb)::text$q$, ba, items_c));
+  o5 := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, o5));
+  res := res || pg_temp.l('COST: confirm of an order with no cost succeeds', v = 'ok', v);
+  res := res || pg_temp.l('COST: item with no cost stays unknown (null)',
+    (select bool_and(unit_cost is null) from public.sales_order_items where order_id = o5));
+  d := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('PROFIT: sales rose by 250 but cost and gross profit ignore the unknown item',
+    (d->>'confirmed_sales')::numeric = (d1->>'confirmed_sales')::numeric + 250
+    and (d->>'cost_of_goods')::numeric = (d1->>'cost_of_goods')::numeric + 120
+    and (d->>'gross_profit')::numeric = (d1->>'gross_profit')::numeric + 80);
+  res := res || pg_temp.l('PROFIT: dashboard counts 1 item with missing cost',
+    (d->>'items_missing_cost')::int = (d1->>'items_missing_cost')::int + 1);
+
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, o4));
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, o5));
+  d := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('PROFIT: after cancelling both, profit numbers are back to start',
+    (d->>'cost_of_goods')::numeric = (d1->>'cost_of_goods')::numeric
+    and (d->>'gross_profit')::numeric = (d1->>'gross_profit')::numeric
+    and (d->>'items_missing_cost')::int = (d1->>'items_missing_cost')::int);
   -- ---------- ONE BUSINESS PER USER ----------
   begin
     insert into public.business_members (business_id, user_id, role, status)
