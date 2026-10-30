@@ -188,7 +188,7 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
             _MetricTile(
               label: 'Low stock',
               value: _num('low_stock_count').toInt().toString(),
-              note: 'Products with 5 or fewer left',
+              note: 'At or below the alert level',
               valueColor: _num('low_stock_count') > 0 ? colors.error : null,
             ),
           ],
@@ -212,7 +212,8 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
             if (item is Map)
               Text(
                 '${item['name']}: ${_qty((item['quantity'] as num?) ?? 0)} '
-                '${item['unit']}',
+                '${item['unit']} (alert at '
+                '${_qty((item['threshold'] as num?) ?? 5)})',
               ),
         ],
         const SizedBox(height: 12),

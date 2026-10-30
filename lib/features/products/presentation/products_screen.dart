@@ -13,6 +13,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _unitController = TextEditingController();
   final _priceController = TextEditingController(text: '0');
   final _costController = TextEditingController();
+  final _lowController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -34,6 +35,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     _unitController.dispose();
     _priceController.dispose();
     _costController.dispose();
+    _lowController.dispose();
     super.dispose();
   }
 
@@ -66,7 +68,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
       final rows = await _client
           .from('products')
-          .select('id, name, unit, price, cost_price, created_at')
+          .select('id, name, unit, price, cost_price, low_stock_threshold, created_at')
           .eq('business_id', businessId)
           .eq('is_active', true)
           .order('created_at', ascending: false);
@@ -97,6 +99,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final cost = costText.isEmpty ? null : num.tryParse(costText);
     final costInvalid =
         costText.isNotEmpty && (cost == null || !cost.isFinite || cost < 0);
+    final lowText = _lowController.text.trim();
+    final low = lowText.isEmpty ? null : num.tryParse(lowText);
+    final lowInvalid =
+        lowText.isNotEmpty && (low == null || !low.isFinite || low < 0);
 
     if (name.isEmpty || unit.isEmpty ||
         price == null || !price.isFinite || price < 0) {
@@ -122,6 +128,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
       return;
     }
 
+    if (lowInvalid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid low-stock level (0 or greater) or leave it empty.'),
+        ),
+      );
+      return;
+    }
+
     final businessId = _businessId;
     if (businessId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -141,12 +156,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
         'unit': unit,
         'price': price,
         'cost_price': cost,
+        'low_stock_threshold': low,
       });
 
       _nameController.clear();
       _unitController.clear();
       _priceController.text = '0';
       _costController.clear();
+      _lowController.clear();
 
       await _loadProducts();
 
@@ -181,6 +198,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
     final costController = TextEditingController(
       text: product['cost_price']?.toString() ?? '',
+    );
+    final lowController = TextEditingController(
+      text: product['low_stock_threshold'] == null
+          ? ''
+          : (product['low_stock_threshold'] as num).toStringAsFixed(
+              (product['low_stock_threshold'] as num) % 1 == 0 ? 0 : 3,
+            ),
     );
 
     final formKey = GlobalKey<FormState>();
@@ -252,6 +276,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: lowController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Low-stock alert level (optional)',
+                  helperText: 'Warn when this many or fewer are left. Empty = 5.',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) return null;
+                  final level = double.tryParse(text);
+                  if (level == null || !level.isFinite || level < 0) {
+                    return 'Enter 0 or greater, or leave empty.';
+                  }
+                  return null;
+                },
+              ),
             ],
           ),
         ),
@@ -281,6 +324,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final price = double.parse(priceController.text.trim());
     final costText = costController.text.trim();
     final cost = costText.isEmpty ? null : double.parse(costText);
+    final lowText = lowController.text.trim();
+    final low = lowText.isEmpty ? null : double.parse(lowText);
 
     if (!mounted) return;
     setState(() => _saving = true);
@@ -288,7 +333,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
     try {
       await _client
           .from('products')
-          .update({'name': name, 'unit': unit, 'price': price, 'cost_price': cost})
+          .update({
+            'name': name,
+            'unit': unit,
+            'price': price,
+            'cost_price': cost,
+            'low_stock_threshold': low,
+          })
           .eq('id', id)
           .eq('business_id', businessId);
 
@@ -439,6 +490,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _lowController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Low-stock alert level (optional)',
+                hintText: 'Empty = 5',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _unitController,
             decoration: const InputDecoration(
               labelText: 'Unit label',
@@ -498,7 +559,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   subtitle: Text(
                     '${product['unit']} \u2022 Price: '
                     '${((product['price'] as num?) ?? 0).toStringAsFixed(2)} \u2022 '
-                    '${product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}'}',
+                    '${product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}'}'
+                    '${product['low_stock_threshold'] == null ? '' : ' \u2022 Low at ${(product['low_stock_threshold'] as num).toStringAsFixed((product['low_stock_threshold'] as num) % 1 == 0 ? 0 : 3)}'}',
                   ),
                   trailing: Wrap(
                     spacing: 0,
