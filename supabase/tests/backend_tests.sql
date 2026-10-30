@@ -36,6 +36,7 @@ declare
   pa uuid; pb uuid;
   o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid; o4 uuid; o5 uuid; pc uuid; d1 jsonb; items_c text;
   v text; v2 text;
+  cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
   k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid(); k4 uuid := gen_random_uuid();
@@ -410,6 +411,113 @@ begin
     (d->>'cost_of_goods')::numeric = (d1->>'cost_of_goods')::numeric
     and (d->>'gross_profit')::numeric = (d1->>'gross_profit')::numeric
     and (d->>'items_missing_cost')::int = (d1->>'items_missing_cost')::int);
+  -- ---------- UDHAAR (credit sales and payments) ----------
+  v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Udhaar Buyer')::text$q$, ba));
+  res := res || pg_temp.l('UDHAAR: create the test customer', v not like 'ERROR%', v);
+  cu := v::uuid;
+  dr0 := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+
+  res := res || pg_temp.l('UDHAAR: credit sale without a saved customer is rejected',
+    pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, 'Typed', null, null, null, true)::text$q$, ba, items1)) like '%needs a saved customer%');
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L, true)::text$q$, ba, items1, cu));
+  res := res || pg_temp.l('UDHAAR: credit sale with a saved customer succeeds', v not like 'ERROR%', v);
+  ocr := v::uuid;
+  res := res || pg_temp.l('UDHAAR: order is flagged on_credit',
+    (select on_credit from public.sales_orders where id = ocr));
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: a pending credit order does not count yet', v is null or v::numeric = 0, v);
+
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, ocr));
+  res := res || pg_temp.l('UDHAAR: confirm credit order succeeds', v = 'ok', v);
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: balance is 200 after confirm', v::numeric = 200, v);
+  dr := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('UDHAAR: dashboard receivable rose by 200',
+    (dr->>'receivable')::numeric = (dr0->>'receivable')::numeric + 200);
+
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb, null, null, null, %L)::text$q$, ba, items1, cu));
+  ocash := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, ocash));
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: a cash sale to the same customer does not add udhaar', v::numeric = 200, v);
+
+  v := pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 80, null, 'first part', %L)::text$q$, ba, cu, k4));
+  res := res || pg_temp.l('UDHAAR: payment of 80 succeeds', v not like 'ERROR%', v);
+  pay1 := v::uuid;
+  v2 := pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 80, null, 'first part', %L)::text$q$, ba, cu, k4));
+  res := res || pg_temp.l('UDHAAR: same idempotency key returns same payment', v2 = pay1::text, v2);
+  res := res || pg_temp.l('UDHAAR: payment saved once',
+    (select count(*) = 1 from public.customer_payments where business_id = ba and idempotency_key = k4));
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: balance is 120 after paying 80', v::numeric = 120, v);
+
+  led := pg_temp.val_as(ua, format('select public.get_customer_ledger(%L, %L)::text', ba, cu))::jsonb;
+  res := res || pg_temp.l('UDHAAR: ledger shows credit 200, paid 80, balance 120',
+    (led->>'credit_total')::numeric = 200 and (led->>'paid_total')::numeric = 80 and (led->>'balance')::numeric = 120);
+  res := res || pg_temp.l('UDHAAR: ledger lists the sale and the payment',
+    jsonb_array_length(led->'entries') = 2);
+
+  res := res || pg_temp.l('UDHAAR: amount 0 rejected',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 0)::text$q$, ba, cu)) like '%greater than zero%');
+  res := res || pg_temp.l('UDHAAR: negative amount rejected',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, -5)::text$q$, ba, cu)) like '%greater than zero%');
+  res := res || pg_temp.l('UDHAAR: payment above the balance rejected',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 120.01)::text$q$, ba, cu)) like '%more than the customer owes%');
+  res := res || pg_temp.l('UDHAAR: future date rejected',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 10, current_date + 5)::text$q$, ba, cu)) like '%future%');
+  res := res || pg_temp.l('UDHAAR: customer of another business rejected',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 10)::text$q$, ba, cf)) like '%Customer not found%');
+  res := res || pg_temp.l('UDHAAR: other business user cannot record a payment here',
+    pg_temp.val_as(ub, format($q$select public.record_customer_payment(%L, %L, 10)::text$q$, ba, cu)) like '%not an active member%');
+  res := res || pg_temp.l('UDHAAR: other business user cannot read balances',
+    pg_temp.val_as(ub, format($q$select count(*)::text from public.get_customer_balances(%L)$q$, ba)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: other business user cannot read the ledger',
+    pg_temp.val_as(ub, format($q$select public.get_customer_ledger(%L, %L)::text$q$, ba, cu)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: other business user sees no payments',
+    pg_temp.val_as(ub, format($q$select count(*)::text from public.customer_payments where customer_id = %L$q$, cu)) = '0');
+  res := res || pg_temp.l('UDHAAR: client cannot insert a payment directly',
+    pg_temp.val_as(ua, format($q$insert into public.customer_payments (business_id, customer_id, amount, paid_on) values (%L, %L, 1, current_date) returning 'x'$q$, ba, cu)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: client cannot update a payment directly',
+    pg_temp.val_as(ua, format($q$update public.customer_payments set amount = 1 where id = %L returning 'x'$q$, pay1)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: client cannot delete a payment directly',
+    pg_temp.val_as(ua, format($q$delete from public.customer_payments where id = %L returning 'x'$q$, pay1)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: signed-out user cannot record a payment',
+    pg_temp.val_as(null, format($q$select public.record_customer_payment(%L, %L, 10)::text$q$, ba, cu)) like 'ERROR%');
+  res := res || pg_temp.l('UDHAAR: signed-out user cannot read balances',
+    pg_temp.val_as(null, format($q$select count(*)::text from public.get_customer_balances(%L)$q$, ba)) like 'ERROR%');
+
+  res := res || pg_temp.l('UDHAAR: other business user cannot void a payment',
+    pg_temp.val_as(ub, format($q$select public.void_customer_payment(%L)$q$, pay1)) like '%not an active member%');
+  v := pg_temp.val_as(ua, format($q$select public.void_customer_payment(%L)$q$, pay1));
+  res := res || pg_temp.l('UDHAAR: owner can void the payment', v = 'ok', v);
+  v2 := pg_temp.val_as(ua, format($q$select public.void_customer_payment(%L)$q$, pay1));
+  res := res || pg_temp.l('UDHAAR: voiding twice is harmless', v2 = 'ok', v2);
+  res := res || pg_temp.l('UDHAAR: voided payment is kept, not deleted',
+    (select voided_at is not null from public.customer_payments where id = pay1));
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: balance is back to 200 after voiding', v::numeric = 200, v);
+  dr := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('UDHAAR: dashboard receivable is again +200',
+    (dr->>'receivable')::numeric = (dr0->>'receivable')::numeric + 200);
+
+  v := pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 200, null, 'full')::text$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: paying the full 200 succeeds', v not like 'ERROR%', v);
+  pay2 := v::uuid;
+  dr := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('UDHAAR: receivable back to start when fully paid',
+    (dr->>'receivable')::numeric = (dr0->>'receivable')::numeric);
+  res := res || pg_temp.l('UDHAAR: nothing more can be paid once settled',
+    pg_temp.val_as(ua, format($q$select public.record_customer_payment(%L, %L, 1)::text$q$, ba, cu)) like '%more than the customer owes%');
+
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, ocr));
+  res := res || pg_temp.l('UDHAAR: cancel of the credit order succeeds', v = 'ok', v);
+  v := pg_temp.val_as(ua, format($q$select balance::text from public.get_customer_balances(%L) where customer_id = %L$q$, ba, cu));
+  res := res || pg_temp.l('UDHAAR: cancelled credit order leaves the customer ahead by 200 (balance -200)', v::numeric = -200, v);
+  dr := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('UDHAAR: a customer who is ahead does not reduce receivable',
+    (dr->>'receivable')::numeric = (dr0->>'receivable')::numeric);
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, ocash));
+
   -- ---------- ONE BUSINESS PER USER ----------
   begin
     insert into public.business_members (business_id, user_id, role, status)
