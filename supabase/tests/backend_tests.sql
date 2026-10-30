@@ -36,7 +36,7 @@ declare
   pa uuid; pb uuid;
   o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid; o4 uuid; o5 uuid; pc uuid; d1 jsonb; items_c text;
   v text; v2 text;
-  cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
+  dl0 jsonb; dl jsonb; cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
   k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid(); k4 uuid := gen_random_uuid();
@@ -411,6 +411,47 @@ begin
     (d->>'cost_of_goods')::numeric = (d1->>'cost_of_goods')::numeric
     and (d->>'gross_profit')::numeric = (d1->>'gross_profit')::numeric
     and (d->>'items_missing_cost')::int = (d1->>'items_missing_cost')::int);
+  -- ---------- LOW-STOCK LEVEL PER PRODUCT ----------
+  dl0 := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  v := pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = 2 where id = %L returning 'x'$q$, pa));
+  res := res || pg_temp.l('LOWSTOCK: owner can set a level of 2', v = 'x', v);
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: product with 5 left and level 2 is no longer low',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int - 1);
+  v := pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = 5 where id = %L returning 'x'$q$, pa));
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: level 5 with 5 left counts as low (at or below)',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int);
+  v := pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = 100 where id = %L returning 'x'$q$, pa));
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: a high level keeps the product low',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int);
+  v := pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = 0 where id = %L returning 'x'$q$, pa));
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: level 0 means only an empty product is low',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int - 1);
+  v := pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = null where id = %L returning 'x'$q$, pa));
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: no level falls back to the old rule (5)',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int);
+  res := res || pg_temp.l('LOWSTOCK: negative level rejected',
+    pg_temp.val_as(ua, format($q$update public.products set low_stock_threshold = -1 where id = %L returning 'x'$q$, pa)) like 'ERROR%');
+  res := res || pg_temp.l('LOWSTOCK: other business user cannot change the level',
+    pg_temp.val_as(ub, format($q$update public.products set low_stock_threshold = 1 where id = %L returning 'x'$q$, pa)) is null);
+
+  dl0 := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  with np as (
+    insert into public.products (business_id, name, unit, price)
+    select ba, 'ZZ low ' || g, 'pcs', 1 from generate_series(1, 11) g returning id
+  )
+  insert into public.inventory (business_id, product_id, quantity) select ba, id, 0 from np;
+  dl := pg_temp.val_as(ua, format('select public.get_dashboard_summary(%L)::text', ba))::jsonb;
+  res := res || pg_temp.l('LOWSTOCK: count is not capped at 10 (11 new empty products)',
+    (dl->>'low_stock_count')::int = (dl0->>'low_stock_count')::int + 11,
+    (dl->>'low_stock_count') || ' vs ' || (dl0->>'low_stock_count'));
+  res := res || pg_temp.l('LOWSTOCK: the list still shows at most 10 items',
+    jsonb_array_length(dl->'low_stock_items') = 10);
+
   -- ---------- UDHAAR (credit sales and payments) ----------
   v := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Udhaar Buyer')::text$q$, ba));
   res := res || pg_temp.l('UDHAAR: create the test customer', v not like 'ERROR%', v);
