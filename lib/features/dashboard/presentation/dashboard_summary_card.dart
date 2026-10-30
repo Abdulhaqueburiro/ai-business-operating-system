@@ -176,6 +176,11 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
               valueColor: netProfit < 0 ? colors.error : null,
             ),
             _MetricTile(
+              label: 'Udhaar to collect',
+              value: _money(_num('receivable')),
+              note: 'Owed by customers',
+            ),
+            _MetricTile(
               label: 'Pending orders',
               value: _num('pending_orders').toInt().toString(),
               note: 'Waiting to be confirmed',

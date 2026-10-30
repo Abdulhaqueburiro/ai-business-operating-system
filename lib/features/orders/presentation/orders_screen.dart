@@ -17,6 +17,7 @@ String _newUuidV4() {
 typedef _SubmitOrder = Future<void> Function({
   required String? customerName,
   required String? customerId,
+  required bool onCredit,
   required String? notes,
   required List<Map<String, Object>> items,
   required String idempotencyKey,
@@ -75,7 +76,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       final rows = await _client
           .from('sales_orders')
           .select(
-            'id, order_number, customer_name, status, total_amount, notes, created_at',
+            'id, order_number, customer_name, status, total_amount, notes, created_at, on_credit',
           )
           .eq('business_id', businessId)
           .order('created_at', ascending: false);
@@ -176,6 +177,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         onSubmit: ({
           required customerName,
           required customerId,
+          required onCredit,
           required notes,
           required items,
           required idempotencyKey,
@@ -189,6 +191,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               'p_notes': notes,
               'p_idempotency_key': idempotencyKey,
               'p_customer_id': customerId,
+              'p_on_credit': onCredit,
             },
           );
         },
@@ -382,6 +385,7 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
   final _notesController = TextEditingController();
   final List<_OrderLine> _lines = [_OrderLine()];
   String? _customerId;
+  bool _onCredit = false;
 
   // One key per dialog session: a retry after a failure re-uses it, so the
   // database can never create a duplicate order.
@@ -448,6 +452,7 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
       await widget.onSubmit(
         customerName: customer.isEmpty ? null : customer,
         customerId: _customerId,
+        onCredit: _customerId != null && _onCredit,
         notes: notes.isEmpty ? null : notes,
         items: items,
         idempotencyKey: _idempotencyKey,
@@ -608,6 +613,19 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                if (_customerId != null)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Sell on credit (udhaar)'),
+                    subtitle: const Text(
+                      'Customer pays later. It is added to what they owe '
+                      'once the order is confirmed.',
+                    ),
+                    value: _onCredit,
+                    onChanged: _submitting
+                        ? null
+                        : (value) => setState(() => _onCredit = value),
+                  ),
                 if (_customerId == null)
                   TextFormField(
                     controller: _customerController,
@@ -781,6 +799,8 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Status: $_status'),
+              if (order['on_credit'] == true)
+                const Text('Payment: Credit (udhaar)'),
               Text('Customer: ${customer.isEmpty ? 'No customer name' : customer}'),
               if (notes.isNotEmpty) Text('Notes: $notes'),
               const SizedBox(height: 12),
