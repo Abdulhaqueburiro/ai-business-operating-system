@@ -36,7 +36,7 @@ declare
   pa uuid; pb uuid;
   o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid; o4 uuid; o5 uuid; pc uuid; d1 jsonb; items_c text;
   v text; v2 text;
-  dl0 jsonb; dl jsonb; cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
+  rp0 jsonb; rp jsonb; rpp0 jsonb; rpp jsonb; orp uuid; erp uuid; dl0 jsonb; dl jsonb; cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
   k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid(); k4 uuid := gen_random_uuid();
@@ -558,6 +558,53 @@ begin
   res := res || pg_temp.l('UDHAAR: a customer who is ahead does not reduce receivable',
     (dr->>'receivable')::numeric = (dr0->>'receivable')::numeric);
   v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, ocash));
+
+  -- ---------- REPORTS ----------
+  rp0 := pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, (now() at time zone 'Asia/Karachi')::date, (now() at time zone 'Asia/Karachi')::date)::text$q$, ba))::jsonb;
+  rpp0 := pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, (now() at time zone 'Asia/Karachi')::date - 10, (now() at time zone 'Asia/Karachi')::date - 1)::text$q$, ba))::jsonb;
+  v := pg_temp.val_as(ua, format($q$select public.create_sales_order(%L, %L::jsonb)::text$q$, ba, items1));
+  orp := v::uuid;
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, orp));
+  res := res || pg_temp.l('REPORT: confirm of the report test order succeeds', v = 'ok', v);
+  v := pg_temp.val_as(ua, format($q$select public.create_expense(%L, 'Transport', 75, (now() at time zone 'Asia/Karachi')::date, 'report test')::text$q$, ba));
+  erp := v::uuid;
+  rp := pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, (now() at time zone 'Asia/Karachi')::date, (now() at time zone 'Asia/Karachi')::date)::text$q$, ba))::jsonb;
+  res := res || pg_temp.l('REPORT: today sales rose by 200 and orders by 1',
+    (rp->>'sales')::numeric = (rp0->>'sales')::numeric + 200 and (rp->>'orders')::int = (rp0->>'orders')::int + 1);
+  res := res || pg_temp.l('REPORT: cost of goods rose by 140 (2 x 70) and gross profit by 60',
+    (rp->>'cost_of_goods')::numeric = (rp0->>'cost_of_goods')::numeric + 140
+    and (rp->>'gross_profit')::numeric = (rp0->>'gross_profit')::numeric + 60);
+  res := res || pg_temp.l('REPORT: expenses rose by 75',
+    (rp->>'expenses')::numeric = (rp0->>'expenses')::numeric + 75);
+  res := res || pg_temp.l('REPORT: net profit = gross profit - expenses',
+    (rp->>'net_profit')::numeric = (rp->>'gross_profit')::numeric - (rp->>'expenses')::numeric);
+  res := res || pg_temp.l('REPORT: one day gives one by_day row with the same sales',
+    jsonb_array_length(rp->'by_day') = 1 and ((rp->'by_day'->0)->>'sales')::numeric = (rp->>'sales')::numeric);
+  res := res || pg_temp.l('REPORT: top products lists the test soap with quantity 2 or more',
+    exists (select 1 from jsonb_array_elements(rp->'top_products') e
+            where e->>'name' = 'ZZ test soap' and (e->>'quantity')::numeric >= 2));
+  res := res || pg_temp.l('REPORT: expenses by category lists Transport with at least 75',
+    exists (select 1 from jsonb_array_elements(rp->'expenses_by_category') e
+            where e->>'category' = 'Transport' and (e->>'amount')::numeric >= 75));
+  rpp := pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, (now() at time zone 'Asia/Karachi')::date - 10, (now() at time zone 'Asia/Karachi')::date - 1)::text$q$, ba))::jsonb;
+  res := res || pg_temp.l('REPORT: a range that ends yesterday does not include today',
+    (rpp->>'sales')::numeric = (rpp0->>'sales')::numeric and jsonb_array_length(rpp->'by_day') = 10);
+  res := res || pg_temp.l('REPORT: start after end is rejected',
+    pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, current_date, current_date - 1)::text$q$, ba)) like '%must not be after%');
+  res := res || pg_temp.l('REPORT: range over 366 days is rejected',
+    pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, current_date - 400, current_date)::text$q$, ba)) like '%366 days%');
+  res := res || pg_temp.l('REPORT: missing dates are rejected',
+    pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, null, null)::text$q$, ba)) like '%Choose a start%');
+  res := res || pg_temp.l('REPORT: other business user cannot read this report',
+    pg_temp.val_as(ub, format($q$select public.get_sales_report(%L, current_date, current_date)::text$q$, ba)) like '%not an active member%');
+  res := res || pg_temp.l('REPORT: signed-out user cannot read a report',
+    pg_temp.val_as(null, format($q$select public.get_sales_report(%L, current_date, current_date)::text$q$, ba)) like 'ERROR%');
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, orp));
+  v := pg_temp.val_as(ua, format($q$select 'ok' from (select public.archive_expense(%L)) s$q$, erp));
+  rp := pg_temp.val_as(ua, format($q$select public.get_sales_report(%L, (now() at time zone 'Asia/Karachi')::date, (now() at time zone 'Asia/Karachi')::date)::text$q$, ba))::jsonb;
+  res := res || pg_temp.l('REPORT: after cancel and archive the numbers are back to start',
+    (rp->>'sales')::numeric = (rp0->>'sales')::numeric and (rp->>'expenses')::numeric = (rp0->>'expenses')::numeric
+    and (rp->>'cost_of_goods')::numeric = (rp0->>'cost_of_goods')::numeric);
 
   -- ---------- ONE BUSINESS PER USER ----------
   begin

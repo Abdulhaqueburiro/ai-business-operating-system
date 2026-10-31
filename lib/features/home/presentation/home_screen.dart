@@ -8,6 +8,7 @@ import 'package:ai_business_os/features/orders/presentation/orders_screen.dart';
 import 'package:ai_business_os/features/dashboard/presentation/dashboard_summary_card.dart';
 import 'package:ai_business_os/features/expenses/presentation/expenses_screen.dart';
 import 'package:ai_business_os/features/customers/presentation/customers_screen.dart';
+import 'package:ai_business_os/features/reports/presentation/reports_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -179,6 +180,12 @@ class _HomeScreenState extends State<HomeScreen> {
       opensExpenses: true,
     ),
     _WorkspaceArea(
+      icon: Icons.bar_chart_outlined,
+      title: 'Reports',
+      description: 'See sales, profit, top products and customers for a period.',
+      opensReports: true,
+    ),
+    _WorkspaceArea(
       icon: Icons.payments_outlined,
       title: 'Payments and reports',
       description: 'Tools for payment tracking and operational insights.',
@@ -346,6 +353,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     ),
                                                 );
                                             }
+                                        : area.opensReports
+                                            ? () {
+                                                Navigator.of(context).push(
+                                                    MaterialPageRoute<void>(
+                                                        builder: (_) =>
+                                                            const ReportsScreen(),
+                                                    ),
+                                                );
+                                            }
                                         : area.opensExpenses
                                             ? () {
                                                 Navigator.of(context).push(
@@ -435,6 +451,7 @@ class _WorkspaceArea {
     this.opensOrders = false,
     this.opensExpenses = false,
     this.opensCustomers = false,
+    this.opensReports = false,
   });
 
   final IconData icon;
@@ -445,6 +462,7 @@ class _WorkspaceArea {
   final bool opensOrders;
   final bool opensExpenses;
   final bool opensCustomers;
+  final bool opensReports;
 }
 
 class _WorkspaceAreaCard extends StatelessWidget {
