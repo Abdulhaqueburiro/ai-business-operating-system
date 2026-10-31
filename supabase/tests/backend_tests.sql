@@ -36,7 +36,7 @@ declare
   pa uuid; pb uuid;
   o1 uuid; o2 uuid; e1 uuid; c1 uuid; c2 uuid; c3 uuid; cf uuid; o3 uuid; o4 uuid; o5 uuid; pc uuid; d1 jsonb; items_c text;
   v text; v2 text;
-  rp0 jsonb; rp jsonb; rpp0 jsonb; rpp jsonb; orp uuid; erp uuid; dl0 jsonb; dl jsonb; cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
+  aq text; aq2 text; rp0 jsonb; rp jsonb; rpp0 jsonb; rpp jsonb; orp uuid; erp uuid; dl0 jsonb; dl jsonb; cu uuid; ocr uuid; ocash uuid; pay1 uuid; pay2 uuid; dr0 jsonb; dr jsonb; led jsonb;
   d0 jsonb; d jsonb;
   items1 text; items10 text;
   k1 uuid := gen_random_uuid(); k2 uuid := gen_random_uuid(); k3 uuid := gen_random_uuid(); k4 uuid := gen_random_uuid();
@@ -605,6 +605,38 @@ begin
   res := res || pg_temp.l('REPORT: after cancel and archive the numbers are back to start',
     (rp->>'sales')::numeric = (rp0->>'sales')::numeric and (rp->>'expenses')::numeric = (rp0->>'expenses')::numeric
     and (rp->>'cost_of_goods')::numeric = (rp0->>'cost_of_goods')::numeric);
+
+  -- ---------- AI QUESTION LIMIT ----------
+  delete from public.ai_requests where business_id = ba or user_id = ua or user_id = ub;
+  aq := pg_temp.val_as(ua, format($q$select public.consume_ai_quota(%L)::text$q$, ba));
+  res := res || pg_temp.l('AIQUOTA: first question is allowed and 29 remain', aq = '29', aq);
+  aq2 := pg_temp.val_as(ua, format($q$select public.consume_ai_quota(%L)::text$q$, ba));
+  res := res || pg_temp.l('AIQUOTA: second question leaves 28', aq2 = '28', aq2);
+  res := res || pg_temp.l('AIQUOTA: other business user cannot use this business',
+    pg_temp.val_as(ub, format($q$select public.consume_ai_quota(%L)::text$q$, ba)) like '%not an active member%');
+  res := res || pg_temp.l('AIQUOTA: signed-out user is rejected',
+    pg_temp.val_as(null, format($q$select public.consume_ai_quota(%L)::text$q$, ba)) like 'ERROR%');
+  res := res || pg_temp.l('AIQUOTA: client cannot read the usage table',
+    pg_temp.val_as(ua, $q$select count(*)::text from public.ai_requests$q$) like 'ERROR%');
+  res := res || pg_temp.l('AIQUOTA: client cannot write the usage table',
+    pg_temp.val_as(ua, format($q$insert into public.ai_requests (business_id, user_id) values (%L, %L) returning 'x'$q$, ba, ua)) like 'ERROR%');
+  insert into public.ai_requests (business_id, user_id)
+    select ba, ua from generate_series(1, 28);
+  aq := pg_temp.val_as(ua, format($q$select public.consume_ai_quota(%L)::text$q$, ba));
+  res := res || pg_temp.l('AIQUOTA: the 31st question in 24 hours is refused',
+    aq like '%Daily AI question limit%', aq);
+  delete from public.ai_requests where user_id = ua;
+  insert into public.ai_requests (business_id, user_id, created_at)
+    select ba, ua, now() - interval '25 hours' from generate_series(1, 40);
+  aq := pg_temp.val_as(ua, format($q$select public.consume_ai_quota(%L)::text$q$, ba));
+  res := res || pg_temp.l('AIQUOTA: questions older than 24 hours do not count', aq = '29', aq);
+  delete from public.ai_requests where business_id = ba;
+  insert into public.ai_requests (business_id, user_id)
+    select ba, ub from generate_series(1, 100);
+  aq := pg_temp.val_as(ua, format($q$select public.consume_ai_quota(%L)::text$q$, ba));
+  res := res || pg_temp.l('AIQUOTA: business-wide limit of 100 stops further questions',
+    aq like '%business reached its daily%', aq);
+  delete from public.ai_requests where business_id = ba;
 
   -- ---------- ONE BUSINESS PER USER ----------
   begin
