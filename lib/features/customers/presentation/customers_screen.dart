@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import 'package:ai_business_os/features/customers/presentation/customers_export.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Creates a random UUID v4 string (used as the idempotency key).
@@ -111,6 +113,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _copyCustomers() async {
+    final text = buildCustomersExport(
+      customers: _customers,
+      balances: _balances,
+    );
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Customers copied. Paste them into Excel or Google Sheets.'),
+      ),
+    );
   }
 
   List<Map<String, dynamic>> get _visibleCustomers {
@@ -330,6 +346,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
       appBar: AppBar(
         title: const Text('Customers'),
         actions: [
+          IconButton(
+            tooltip: 'Copy customers for Excel',
+            onPressed: _loading || _customers.isEmpty ? null : _copyCustomers,
+            icon: const Icon(Icons.copy_all),
+          ),
           IconButton(
             tooltip: 'Refresh customers',
             onPressed: _loading || _busy ? null : _loadCustomers,
