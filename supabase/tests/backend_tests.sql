@@ -650,6 +650,129 @@ begin
   res := res || pg_temp.l('RULE: create_business refuses a user who already has one',
     pg_temp.val_as(ua, $q$select public.create_business('ZZ second shop')::text$q$) like '%already have a business%');
 
+  -- ---------- STAFF ROLES ----------
+  declare
+    st_email text; st_prod uuid; st_order uuid; st_exp uuid; st_pay uuid; st_cust uuid;
+    st_o2 uuid; st_v text; st_list jsonb; owner_email text;
+  begin
+    select u.email into st_email from auth.users u where u.id = ub;
+    select u.email into owner_email from auth.users u where u.id = ua;
+    if st_email is null then
+      raise exception 'STAFF tests need user B to have an email address.';
+    end if;
+
+    -- things the owner prepares
+    insert into public.products (business_id, name, unit, price)
+      values (ba, 'ZZ staff item', 'pcs', 50) returning id into st_prod;
+    insert into public.inventory (business_id, product_id, quantity) values (ba, st_prod, 10);
+    st_exp := pg_temp.val_as(ua, format($q$select public.create_expense(%L, 'Other', 10, current_date, 'staff test', %L)::text$q$, ba, gen_random_uuid()))::uuid;
+    st_cust := pg_temp.val_as(ua, format($q$select public.create_customer(%L, 'ZZ Staff test customer')::text$q$, ba))::uuid;
+    select cp.id into st_pay from public.customer_payments cp where cp.business_id = ba limit 1;
+
+    -- owner side
+    res := res || pg_temp.l('STAFF: owner role is reported as owner',
+      pg_temp.val_as(ua, format($q$select public.get_my_role(%L)$q$, ba)) = 'owner');
+    res := res || pg_temp.l('STAFF: signed-out user cannot read a role',
+      pg_temp.val_as(null, format($q$select public.get_my_role(%L)$q$, ba)) like 'ERROR%');
+    res := res || pg_temp.l('STAFF: user of another business cannot read this role',
+      pg_temp.val_as(ub, format($q$select public.get_my_role(%L)$q$, ba)) like '%not an active member%');
+    res := res || pg_temp.l('STAFF: user of another business cannot list staff',
+      pg_temp.val_as(ub, format($q$select public.list_business_staff(%L)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: user of another business cannot add staff',
+      pg_temp.val_as(ub, format($q$select public.add_staff_member(%L, %L)::text$q$, ba, st_email)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: unknown email is refused',
+      pg_temp.val_as(ua, format($q$select public.add_staff_member(%L, 'nobody-here@example.invalid')::text$q$, ba)) like '%No account found%');
+    res := res || pg_temp.l('STAFF: bad email is refused',
+      pg_temp.val_as(ua, format($q$select public.add_staff_member(%L, 'abc')::text$q$, ba)) like '%valid email%');
+    res := res || pg_temp.l('STAFF: someone who already owns another business cannot be added',
+      pg_temp.val_as(ua, format($q$select public.add_staff_member(%L, %L)::text$q$, ba, st_email)) like '%another business%');
+    res := res || pg_temp.l('STAFF: a person already in the business is refused',
+      pg_temp.val_as(ua, format($q$select public.add_staff_member(%L, %L)::text$q$, ba, owner_email)) like '%already in your business%');
+
+    -- user B leaves their own business and joins as staff
+    delete from public.business_members where user_id = ub;
+    st_v := pg_temp.val_as(ua, format($q$select public.add_staff_member(%L, upper(%L))::text$q$, ba, st_email));
+    res := res || pg_temp.l('STAFF: owner can add staff (email is not case sensitive)',
+      st_v like '%"role": "staff"%', st_v);
+    res := res || pg_temp.l('STAFF: new member is stored as staff',
+      exists (select 1 from public.business_members where business_id = ba and user_id = ub and role = 'staff' and status = 'active'));
+    res := res || pg_temp.l('STAFF: staff role is reported as staff',
+      pg_temp.val_as(ub, format($q$select public.get_my_role(%L)$q$, ba)) = 'staff');
+    st_list := pg_temp.val_as(ua, format($q$select public.list_business_staff(%L)::text$q$, ba))::jsonb;
+    res := res || pg_temp.l('STAFF: owner sees the staff list with the new person',
+      exists (select 1 from jsonb_array_elements(st_list) e where e->>'role' = 'staff' and lower(e->>'email') = lower(st_email))
+      and exists (select 1 from jsonb_array_elements(st_list) e where e->>'role' = 'owner' and (e->>'is_me')::boolean));
+
+    -- what staff CAN do
+    st_v := pg_temp.val_as(ub, format($q$select public.create_sales_order(%L, %L::jsonb, 'Walk-in', null, %L)::text$q$,
+      ba, jsonb_build_array(jsonb_build_object('product_id', st_prod, 'quantity', 2))::text, gen_random_uuid()));
+    res := res || pg_temp.l('STAFF: staff can create an order', st_v not like 'ERROR%', st_v);
+    st_order := st_v::uuid;
+    res := res || pg_temp.l('STAFF: staff can confirm an order',
+      pg_temp.val_as(ub, format($q$select 'ok' from (select public.confirm_sales_order(%L)) s$q$, st_order)) = 'ok');
+    res := res || pg_temp.l('STAFF: staff can add a customer',
+      pg_temp.val_as(ub, format($q$select public.create_customer(%L, 'ZZ Added by staff')::text$q$, ba)) not like 'ERROR%');
+    res := res || pg_temp.l('STAFF: staff can see customer balances',
+      pg_temp.val_as(ub, format($q$select public.get_customer_balances(%L)::text$q$, ba)) not like 'ERROR%');
+    res := res || pg_temp.l('STAFF: staff can see products',
+      pg_temp.val_as(ub, format($q$select count(*)::text from public.products where business_id = %L$q$, ba))::int > 0);
+
+    -- what staff can NOT do
+    res := res || pg_temp.l('STAFF: staff cannot cancel an order',
+      pg_temp.val_as(ub, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, st_order)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot adjust stock',
+      pg_temp.val_as(ub, format($q$select public.adjust_stock(%L, 1, 'x')::text$q$, st_prod)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot add an expense',
+      pg_temp.val_as(ub, format($q$select public.create_expense(%L, 'Other', 5, current_date, 'x', %L)::text$q$, ba, gen_random_uuid())) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot archive an expense',
+      pg_temp.val_as(ub, format($q$select 'ok' from (select public.archive_expense(%L)) s$q$, st_exp)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot read expenses from the table',
+      pg_temp.val_as(ub, format($q$select count(*)::text from public.expenses where business_id = %L$q$, ba)) = '0');
+    res := res || pg_temp.l('STAFF: the owner still reads expenses from the table',
+      pg_temp.val_as(ua, format($q$select count(*)::text from public.expenses where business_id = %L$q$, ba))::int >= 1);
+    res := res || pg_temp.l('STAFF: staff cannot open the dashboard',
+      pg_temp.val_as(ub, format($q$select public.get_dashboard_summary(%L)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot open reports',
+      pg_temp.val_as(ub, format($q$select public.get_sales_report(%L, current_date, current_date)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot use the AI assistant',
+      pg_temp.val_as(ub, format($q$select public.consume_ai_quota(%L)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot archive a customer',
+      pg_temp.val_as(ub, format($q$select 'ok' from (select public.archive_customer(%L)) s$q$, st_cust)) like '%Only the business owner%');
+    if st_pay is not null then
+      res := res || pg_temp.l('STAFF: staff cannot void a customer payment',
+        pg_temp.val_as(ub, format($q$select 'ok' from (select public.void_customer_payment(%L)) s$q$, st_pay)) like '%Only the business owner%');
+    end if;
+    res := res || pg_temp.l('STAFF: staff cannot list staff',
+      pg_temp.val_as(ub, format($q$select public.list_business_staff(%L)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot add staff',
+      pg_temp.val_as(ub, format($q$select public.add_staff_member(%L, %L)::text$q$, ba, st_email)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot remove staff',
+      pg_temp.val_as(ub, format($q$select 'ok' from (select public.remove_staff_member(%L, %L)) s$q$, ba, ua)) like '%Only the business owner%');
+    res := res || pg_temp.l('STAFF: staff cannot change their own role in the table',
+      pg_temp.val_as(ub, format($q$update public.business_members set role = 'owner' where user_id = %L returning 'x'$q$, ub)) like 'ERROR%');
+
+    -- the owner can still do everything
+    res := res || pg_temp.l('STAFF: owner can still open the dashboard',
+      pg_temp.val_as(ua, format($q$select public.get_dashboard_summary(%L)::text$q$, ba)) not like 'ERROR%');
+    res := res || pg_temp.l('STAFF: owner can still cancel the staff order',
+      pg_temp.val_as(ua, format($q$select 'ok' from (select public.cancel_sales_order(%L)) s$q$, st_order)) = 'ok');
+    res := res || pg_temp.l('STAFF: owner can still adjust stock',
+      pg_temp.val_as(ua, format($q$select public.adjust_stock(%L, 1, 'restock')::text$q$, st_prod)) not like 'ERROR%');
+
+    -- removing staff
+    res := res || pg_temp.l('STAFF: owner cannot remove themselves',
+      pg_temp.val_as(ua, format($q$select 'ok' from (select public.remove_staff_member(%L, %L)) s$q$, ba, ua)) like '%cannot remove yourself%');
+    res := res || pg_temp.l('STAFF: removing someone who is not staff is refused',
+      pg_temp.val_as(ua, format($q$select 'ok' from (select public.remove_staff_member(%L, %L)) s$q$, ba, gen_random_uuid())) like '%not found%');
+    res := res || pg_temp.l('STAFF: owner can remove a staff member',
+      pg_temp.val_as(ua, format($q$select 'ok' from (select public.remove_staff_member(%L, %L)) s$q$, ba, ub)) = 'ok');
+    res := res || pg_temp.l('STAFF: removed staff can no longer create orders',
+      pg_temp.val_as(ub, format($q$select public.create_sales_order(%L, %L::jsonb)::text$q$, ba,
+        jsonb_build_array(jsonb_build_object('product_id', st_prod, 'quantity', 1))::text)) like '%not an active member%');
+    res := res || pg_temp.l('STAFF: removed staff can no longer see products',
+      pg_temp.val_as(ub, format($q$select count(*)::text from public.products where business_id = %L$q$, ba)) = '0');
+  end;
+
   exception when others then
     err := sqlerrm;
   end;
