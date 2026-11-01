@@ -21,7 +21,7 @@ void main() {
 
     expect(find.text('AI Business OS'), findsOneWidget);
     expect(find.textContaining('Supabase is not configured'), findsOneWidget);
-    expect(find.text('Your business workspace'), findsOneWidget);
+    expect(find.text('Assalam-o-alaikum'), findsOneWidget);
     expect(find.text('Workspace areas'), findsOneWidget);
     expect(
       find.textContaining('saved in your business database'),

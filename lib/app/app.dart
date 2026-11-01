@@ -1,6 +1,7 @@
 import 'package:ai_business_os/features/home/presentation/home_screen.dart';
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
 import 'auth_gate.dart';
 import 'supabase_connection_checker.dart';
 
@@ -20,14 +21,11 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const brandColor = Color(0xFF176B63);
-
     return MaterialApp(
       title: 'AI Business OS',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: brandColor),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       home: enableAuthentication
           ? AuthGate(
               backendStatusMessage: backendStatusMessage,
