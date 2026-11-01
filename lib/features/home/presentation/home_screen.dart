@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:ai_business_os/app/animations.dart';
 import 'package:ai_business_os/app/supabase_connection_checker.dart';
 import 'package:ai_business_os/features/assistant/presentation/assistant_screen.dart';
 import 'package:ai_business_os/features/customers/presentation/customers_screen.dart';
@@ -284,14 +285,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         spacing: 16,
                         runSpacing: 12,
                         children: [
-                          for (final area in areas)
-                            SizedBox(
-                              width: areaWidth,
-                              child: _WorkspaceAreaCard(
-                                area: area,
-                                onTap: area.openScreen == null
-                                    ? null
-                                    : () => _open(area.openScreen!()),
+                          for (var i = 0; i < areas.length; i++)
+                            FadeSlideIn(
+                              delay: Duration(milliseconds: 40 * i),
+                              child: SizedBox(
+                                width: areaWidth,
+                                child: _WorkspaceAreaCard(
+                                  area: areas[i],
+                                  onTap: areas[i].openScreen == null
+                                      ? null
+                                      : () => _open(areas[i].openScreen!()),
+                                ),
                               ),
                             ),
                         ],
@@ -417,6 +421,18 @@ class _WorkspaceArea {
   final bool managerOnly;
 }
 
+const Map<String, Color> _accents = {
+  'Products': Color(0xFF2B6CB0),
+  'Inventory': Color(0xFF0E9AA7),
+  'Orders and fulfillment': Color(0xFF145C4A),
+  'Customers': Color(0xFF7C3AED),
+  'Expenses': Color(0xFFA15C08),
+  'Reports': Color(0xFF18794E),
+  'AI assistant': Color(0xFFD9534F),
+  'Staff': Color(0xFF6B7C75),
+  'Payments and reports': Color(0xFF2B6CB0),
+};
+
 class _WorkspaceAreaCard extends StatelessWidget {
   const _WorkspaceAreaCard({required this.area, this.onTap});
 
@@ -426,6 +442,7 @@ class _WorkspaceAreaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final accent = _accents[area.title] ?? colors.primary;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -439,10 +456,10 @@ class _WorkspaceAreaCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: colors.primaryContainer,
+                  color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(area.icon, color: colors.onPrimaryContainer),
+                child: Icon(area.icon, color: accent),
               ),
               const SizedBox(width: 14),
               Expanded(

@@ -1,10 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:ai_business_os/app/supabase_connection_checker.dart';
 import 'package:ai_business_os/features/auth/presentation/auth_screen.dart';
 import 'package:ai_business_os/features/business/presentation/business_setup_screen.dart';
-import 'package:ai_business_os/features/home/presentation/home_screen.dart';
+import 'package:ai_business_os/app/main_shell.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -50,7 +50,7 @@ class _AuthGateState extends State<AuthGate> {
           return const AuthScreen();
         }
         if (_businessCreated) {
-          return HomeScreen(
+          return MainShell(
             backendStatusMessage: widget.backendStatusMessage,
             testSupabaseConnection: widget.testSupabaseConnection,
           );
@@ -94,7 +94,7 @@ class _AuthGateState extends State<AuthGate> {
               );
             }
             if (businessSnapshot.data == true) {
-              return HomeScreen(
+              return MainShell(
                 backendStatusMessage: widget.backendStatusMessage,
                 testSupabaseConnection: widget.testSupabaseConnection,
               );
