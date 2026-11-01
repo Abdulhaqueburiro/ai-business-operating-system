@@ -10,6 +10,8 @@ import 'package:ai_business_os/features/expenses/presentation/expenses_screen.da
 import 'package:ai_business_os/features/customers/presentation/customers_screen.dart';
 import 'package:ai_business_os/features/reports/presentation/reports_screen.dart';
 import 'package:ai_business_os/features/assistant/presentation/assistant_screen.dart';
+import 'package:ai_business_os/features/staff/business_role.dart';
+import 'package:ai_business_os/features/staff/presentation/staff_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -29,6 +31,22 @@ enum _ConnectionTestState { notTested, testing, connected, failed }
 
 class _HomeScreenState extends State<HomeScreen> {
   _ConnectionTestState _connectionTestState = _ConnectionTestState.notTested;
+  String? _role;
+
+  bool get _isManager => isManagerRole(_role);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await loadMyRole();
+    if (!mounted) return;
+    setState(() => _role = role);
+  }
+
   String? _connectionTestMessage;
   Future<Map<String, dynamic>?> _loadBusinessDetails() async {
     final client = Supabase.instance.client;
@@ -179,18 +197,28 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Expenses',
       description: 'Record business expenses such as rent, salary and supplies.',
       opensExpenses: true,
+      managerOnly: true,
     ),
     _WorkspaceArea(
       icon: Icons.bar_chart_outlined,
       title: 'Reports',
       description: 'See sales, profit, top products and customers for a period.',
       opensReports: true,
+      managerOnly: true,
     ),
     _WorkspaceArea(
       icon: Icons.smart_toy_outlined,
       title: 'AI assistant',
       description: 'Ask questions about your sales, profit, stock and udhaar.',
       opensAssistant: true,
+      managerOnly: true,
+    ),
+    _WorkspaceArea(
+      icon: Icons.badge_outlined,
+      title: 'Staff',
+      description: 'Add or remove the people who work in your business.',
+      opensStaff: true,
+      managerOnly: true,
     ),
     _WorkspaceArea(
       icon: Icons.payments_outlined,
@@ -260,8 +288,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 12),
                       _buildBusinessDetailsCard(context),
                       const SizedBox(height: 12),
-                      const DashboardSummaryCard(),
-                      const SizedBox(height: 12),
+                      if (_isManager) ...[
+                        const DashboardSummaryCard(),
+                        const SizedBox(height: 12),
+                      ],
                       _buildConnectionTestCard(context),
                       const SizedBox(height: 28),
                       Card(
@@ -321,6 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         runSpacing: 16,
                         children: [
                           for (final area in _areas)
+                            if (!area.managerOnly || _isManager)
                             SizedBox(
                               width: areaWidth,
                               child: _WorkspaceAreaCard(
@@ -375,6 +406,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     MaterialPageRoute<void>(
                                                         builder: (_) =>
                                                             const ReportsScreen(),
+                                                    ),
+                                                );
+                                            }
+                                        : area.opensStaff
+                                            ? () {
+                                                Navigator.of(context).push(
+                                                    MaterialPageRoute<void>(
+                                                        builder: (_) =>
+                                                            const StaffScreen(),
                                                     ),
                                                 );
                                             }
@@ -469,6 +509,8 @@ class _WorkspaceArea {
     this.opensCustomers = false,
     this.opensReports = false,
     this.opensAssistant = false,
+    this.opensStaff = false,
+    this.managerOnly = false,
   });
 
   final IconData icon;
@@ -481,6 +523,8 @@ class _WorkspaceArea {
   final bool opensCustomers;
   final bool opensReports;
   final bool opensAssistant;
+  final bool opensStaff;
+  final bool managerOnly;
 }
 
 class _WorkspaceAreaCard extends StatelessWidget {

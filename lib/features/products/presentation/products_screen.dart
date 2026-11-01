@@ -1,3 +1,4 @@
+import 'package:ai_business_os/features/staff/business_role.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -20,6 +21,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   String? _error;
   String? _businessId;
   List<Map<String, dynamic>> _products = [];
+  bool _isStaff = false;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -68,18 +70,40 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
       final rows = await _client
           .from('products')
-          .select('id, name, unit, price, cost_price, low_stock_threshold, created_at')
+          .select('id, name, unit, price, low_stock_threshold, created_at')
           .eq('business_id', businessId)
           .eq('is_active', true)
           .order('created_at', ascending: false);
 
       if (!mounted) return;
 
+      // Cost prices are hidden from staff. Managers get them from a
+      // manager-only function; if it is not available the costs stay empty.
+      final role = await loadMyRole();
+      final costById = <String, dynamic>{};
+      if (isManagerRole(role)) {
+        try {
+          final costs = await _client.rpc(
+            'get_product_costs',
+            params: {'p_business_id': businessId},
+          );
+          for (final c in (costs as List)) {
+            costById[c['id'].toString()] = c['cost_price'];
+          }
+        } catch (_) {
+          // Costs stay empty.
+        }
+      }
+      if (!mounted) return;
+
       setState(() {
         _businessId = businessId;
-        _products = rows
-            .map((row) => Map<String, dynamic>.from(row))
-            .toList();
+        _isStaff = role == 'staff';
+        _products = rows.map((row) {
+          final product = Map<String, dynamic>.from(row);
+          product['cost_price'] = costById[product['id'].toString()];
+          return product;
+        }).toList();
         _loading = false;
       });
     } catch (e) {
@@ -460,6 +484,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ),
           ),
+          if (!_isStaff) ...[
           const SizedBox(height: 24),
           TextField(
             controller: _nameController,
@@ -522,6 +547,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               label: Text(_saving ? 'Please wait...' : 'Save product'),
             ),
           ),
+          ],
           const SizedBox(height: 28),
           Text(
             'Saved products (${_products.length})',
@@ -559,10 +585,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   subtitle: Text(
                     '${product['unit']} \u2022 Price: '
                     '${((product['price'] as num?) ?? 0).toStringAsFixed(2)} \u2022 '
-                    '${product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}'}'
+                    '${_isStaff ? '' : (product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}')}'
                     '${product['low_stock_threshold'] == null ? '' : ' \u2022 Low at ${(product['low_stock_threshold'] as num).toStringAsFixed((product['low_stock_threshold'] as num) % 1 == 0 ? 0 : 3)}'}',
                   ),
-                  trailing: Wrap(
+                  trailing: _isStaff ? null : Wrap(
                     spacing: 0,
                     children: [
                       IconButton(

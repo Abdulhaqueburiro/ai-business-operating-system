@@ -136,7 +136,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     const thirtyAgo = new Date(today.getTime() - 29 * 24 * 3600 * 1000);
 
-    const [dashboard, monthReport, last30Report, balances, customers, products] =
+    const [dashboard, monthReport, last30Report, balances, customers, products, productCosts] =
       await Promise.all([
         supabase.rpc("get_dashboard_summary", { p_business_id: businessId }),
         supabase.rpc("get_sales_report", {
@@ -158,10 +158,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .limit(500),
         supabase
           .from("products")
-          .select("name, unit, price, cost_price, low_stock_threshold, inventory(quantity)")
+          .select("id, name, unit, price, low_stock_threshold, inventory(quantity)")
           .eq("business_id", businessId)
           .eq("is_active", true)
           .limit(200),
+        supabase.rpc("get_product_costs", { p_business_id: businessId }),
       ]);
 
     const nameById = new Map<string, string>();
@@ -177,12 +178,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .sort((a: { owes: number }, b: { owes: number }) => b.owes - a.owes)
       .slice(0, 20);
 
+    const costById = new Map<string, number | null>();
+    for (const c of (productCosts.data ?? []) as { id: string; cost_price: number | null }[]) {
+      costById.set(String(c.id), c.cost_price);
+    }
+
     const productList = (products.data ?? []).map(
       (p: {
+        id: string;
         name: string;
         unit: string;
         price: number;
-        cost_price: number | null;
         low_stock_threshold: number | null;
         inventory: { quantity: number }[] | { quantity: number } | null;
       }) => {
@@ -191,7 +197,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           name: p.name,
           unit: p.unit,
           selling_price: p.price,
-          cost_price: p.cost_price,
+          cost_price: costById.get(String(p.id)) ?? null,
           stock: inv?.quantity ?? 0,
           low_stock_alert_level: p.low_stock_threshold ?? 5,
         };

@@ -759,6 +759,35 @@ begin
     res := res || pg_temp.l('STAFF: owner can still adjust stock',
       pg_temp.val_as(ua, format($q$select public.adjust_stock(%L, 1, 'restock')::text$q$, st_prod)) not like 'ERROR%');
 
+    -- cost prices stay hidden from staff
+    res := res || pg_temp.l('COSTHIDE: owner can still save a cost price on a product',
+      pg_temp.val_as(ua, format($q$update public.products set cost_price = 33 where id = %L returning 'ok'$q$, st_prod)) = 'ok');
+    st_v := pg_temp.val_as(ua, format($q$select public.get_product_costs(%L)::text$q$, ba));
+    res := res || pg_temp.l('COSTHIDE: owner reads the cost through get_product_costs',
+      st_v not like 'ERROR%' and exists (select 1 from jsonb_array_elements(st_v::jsonb) e
+        where e->>'id' = st_prod::text and (e->>'cost_price')::numeric = 33), st_v);
+    res := res || pg_temp.l('COSTHIDE: staff cannot call get_product_costs',
+      pg_temp.val_as(ub, format($q$select public.get_product_costs(%L)::text$q$, ba)) like '%Only the business owner%');
+    res := res || pg_temp.l('COSTHIDE: staff cannot read cost_price from the table',
+      pg_temp.val_as(ub, format($q$select cost_price::text from public.products where id = %L$q$, st_prod)) like '%permission denied%');
+    res := res || pg_temp.l('COSTHIDE: select * on products is refused for everyone',
+      pg_temp.val_as(ua, format($q$select count(*)::text from (select * from public.products where id = %L) s$q$, st_prod)) like '%permission denied%');
+    res := res || pg_temp.l('COSTHIDE: staff can still read name and price',
+      pg_temp.val_as(ub, format($q$select price::text from public.products where id = %L$q$, st_prod))::numeric = 50);
+    res := res || pg_temp.l('COSTHIDE: staff cannot read unit_cost from order items',
+      pg_temp.val_as(ub, format($q$select unit_cost::text from public.sales_order_items where order_id = %L limit 1$q$, st_order)) like '%permission denied%');
+    res := res || pg_temp.l('COSTHIDE: staff can still read order item quantity and price',
+      pg_temp.val_as(ub, format($q$select count(*)::text from (select quantity, unit_price, line_total from public.sales_order_items where order_id = %L) s$q$, st_order)) = '1');
+    res := res || pg_temp.l('COSTHIDE: staff cannot add a product',
+      pg_temp.val_as(ub, format($q$insert into public.products (business_id, name, unit, price) values (%L, 'ZZ staff product', 'pcs', 1) returning 'x'$q$, ba)) like 'ERROR%');
+    st_v := pg_temp.val_as(ub, format($q$update public.products set price = 1 where id = %L returning 'x'$q$, st_prod));
+    res := res || pg_temp.l('COSTHIDE: staff cannot change a product price',
+      (select p.price from public.products p where p.id = st_prod) = 50);
+    res := res || pg_temp.l('COSTHIDE: owner can add a product',
+      pg_temp.val_as(ua, format($q$insert into public.products (business_id, name, unit, price, cost_price) values (%L, 'ZZ owner product', 'pcs', 10, 4) returning 'ok'$q$, ba)) = 'ok');
+    res := res || pg_temp.l('COSTHIDE: owner can change a product price',
+      pg_temp.val_as(ua, format($q$update public.products set price = 55 where id = %L returning 'ok'$q$, st_prod)) = 'ok');
+
     -- removing staff
     res := res || pg_temp.l('STAFF: owner cannot remove themselves',
       pg_temp.val_as(ua, format($q$select 'ok' from (select public.remove_staff_member(%L, %L)) s$q$, ba, ua)) like '%cannot remove yourself%');
