@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:ai_business_os/app/status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -284,28 +285,43 @@ class _OrdersScreenState extends State<OrdersScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   children: [
-                    Card(
-                      color: colors.primaryContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Sales overview',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            Text('Total orders: ${_orders.length}'),
-                            Text(
-                              'Pending orders: ${_orders.where((o) => o['status'] == 'pending').length}',
-                            ),
-                            Text(
-                              'Order value: ${_orders.fold<num>(0, (sum, o) => sum + ((o['total_amount'] as num?) ?? 0))}',
-                            ),
-                          ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _OrderStat(
+                            icon: Icons.receipt_long_rounded,
+                            accent: colors.primary,
+                            label: 'Total orders',
+                            value: '${_orders.length}',
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _OrderStat(
+                            icon: Icons.pending_actions_rounded,
+                            accent: const Color(0xFFA15C08),
+                            label: 'Pending',
+                            value:
+                                '${_orders.where((o) => o['status'] == 'pending').length}',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _OrderStat(
+                            icon: Icons.paid_rounded,
+                            accent: const Color(0xFF18794E),
+                            label: 'Order value',
+                            value: _orders
+                                .fold<num>(
+                                  0,
+                                  (sum, o) =>
+                                      sum + ((o['total_amount'] as num?) ?? 0),
+                                )
+                                .round()
+                                .toString(),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -328,24 +344,87 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     else
                       for (final order in _orders)
                         Card(
-                          child: ListTile(
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.receipt_long),
-                            ),
-                            title: Text(
-                              'Order #${order['order_number']}',
-                            ),
-                            subtitle: Text(
-                              '${(order['customer_name']?.toString().trim().isNotEmpty ?? false) ? order['customer_name'] : 'No customer name'}'
-                              '\n${_formatDate(order['created_at'])}'
-                              '\nStatus: ${order['status']}',
-                            ),
-                            isThreeLine: true,
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
                             onTap: () => _openOrder(order),
-                            trailing: Text(
-                              (order['total_amount'] as num? ?? 0)
-                                  .toStringAsFixed(2),
-                              style: Theme.of(context).textTheme.titleSmall,
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: colors.primary.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.receipt_long_rounded,
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Order #${order['order_number']}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${(order['customer_name']?.toString().trim().isNotEmpty ?? false) ? order['customer_name'] : 'No customer name'}'
+                                          ' · ${_formatDate(order['created_at'])}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        (order['total_amount'] as num? ?? 0)
+                                            .toStringAsFixed(2),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 4,
+                                        children: [
+                                          if (order['on_credit'] == true)
+                                            const StatusChip(status: 'udhaar'),
+                                          StatusChip(
+                                            status:
+                                                order['status']?.toString() ??
+                                                    '',
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -894,6 +973,65 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
                 : const Text('Confirm order'),
           ),
       ],
+    );
+  }
+}
+
+class _OrderStat extends StatelessWidget {
+  const _OrderStat({
+    required this.icon,
+    required this.accent,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: accent),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }
