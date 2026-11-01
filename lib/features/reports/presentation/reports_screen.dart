@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:ai_business_os/features/reports/presentation/report_export.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 String _money(num value) => 'PKR ${value.toStringAsFixed(2)}';
@@ -127,6 +129,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _copyReport() async {
+    final report = _report;
+    if (report == null) return;
+    final (from, to) = _dates();
+    final text = buildReportExport(
+      fromDate: _dateText(from),
+      toDate: _dateText(to),
+      report: report,
+    );
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Report copied. Paste it into Excel or Google Sheets.'),
+      ),
+    );
   }
 
   num _num(String key) => (_report?[key] as num?) ?? 0;
@@ -334,6 +354,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       appBar: AppBar(
         title: const Text('Reports'),
         actions: [
+          IconButton(
+            tooltip: 'Copy report for Excel',
+            onPressed: (_loading || _report == null) ? null : _copyReport,
+            icon: const Icon(Icons.copy_all),
+          ),
           IconButton(
             tooltip: 'Refresh report',
             onPressed: _loading ? null : _load,
