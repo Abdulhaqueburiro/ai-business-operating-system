@@ -295,42 +295,112 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Widget _buildCustomerCard(Map<String, dynamic> customer) {
+    final colors = Theme.of(context).colorScheme;
     final name = customer['name']?.toString() ?? '';
     final phone = customer['phone']?.toString().trim() ?? '';
     final notes = customer['notes']?.toString().trim() ?? '';
     final balance = _balances[customer['id'].toString()] ?? 0;
-    final lines = <String>[
+    final owes = balance > 0.004;
+    final advance = balance < -0.004;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final amber = dark ? const Color(0xFFE8B15A) : const Color(0xFFA15C08);
+    final green = dark ? const Color(0xFF5FD39A) : const Color(0xFF18794E);
+    final accent = owes ? amber : (advance ? green : colors.primary);
+    final subtitle = [
       if (phone.isNotEmpty) phone,
       if (notes.isNotEmpty) notes,
-      if (balance > 0.004) 'Owes PKR ${balance.toStringAsFixed(2)}',
-      if (balance < -0.004) 'Advance PKR ${(-balance).toStringAsFixed(2)}',
-    ];
+    ].join(' · ');
 
     return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(name.isEmpty ? '?' : name.substring(0, 1).toUpperCase()),
-        ),
-        title: Text(name),
-        subtitle: lines.isEmpty ? null : Text(lines.join('\n')),
-        isThreeLine: lines.length > 1,
-        trailing: Wrap(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconButton(
-              tooltip: 'Udhaar statement and payments',
-              onPressed: _busy ? null : () => _openLedger(customer),
-              icon: const Icon(Icons.receipt_long_outlined),
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: accent.withValues(alpha: 0.16),
+                  foregroundColor: accent,
+                  child: Text(
+                    name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: colors.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                if (owes || advance)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        owes
+                            ? 'Owes PKR ${balance.toStringAsFixed(2)}'
+                            : 'Advance PKR ${(-balance).toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            IconButton(
-              tooltip: 'Edit customer',
-              onPressed:
-                  _busy ? null : () => _openCustomerDialog(existing: customer),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-            IconButton(
-              tooltip: 'Remove customer',
-              onPressed: _busy ? null : () => _archiveCustomer(customer),
-              icon: const Icon(Icons.delete_outline),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                children: [
+                  IconButton(
+                    tooltip: 'Udhaar statement and payments',
+                    onPressed: _busy ? null : () => _openLedger(customer),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit customer',
+                    onPressed: _busy
+                        ? null
+                        : () => _openCustomerDialog(existing: customer),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Remove customer',
+                    onPressed: _busy ? null : () => _archiveCustomer(customer),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -389,6 +459,54 @@ class _CustomersScreenState extends State<CustomersScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF1B7A62), Color(0xFF145C4A)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Udhaar to collect',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Text(
+                                  'PKR ${_balances.values.where((b) => b > 0.004).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${_balances.values.where((b) => b > 0.004).length} owing',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: _searchController,
                       onChanged: (value) => setState(() => _query = value),
