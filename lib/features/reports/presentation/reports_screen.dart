@@ -161,29 +161,46 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _tile(String label, String value, {String? note, Color? color}) {
+    final colors = Theme.of(context).colorScheme;
+
     return SizedBox(
       width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 4),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(color: color, fontWeight: FontWeight.w800),
+            ),
+            if (note != null) ...[
+              const SizedBox(height: 2),
               Text(
-                value,
+                note,
                 style: Theme.of(context)
                     .textTheme
-                    .titleMedium
-                    ?.copyWith(color: color, fontWeight: FontWeight.w600),
+                    .bodySmall
+                    ?.copyWith(color: colors.onSurfaceVariant),
               ),
-              if (note != null) ...[
-                const SizedBox(height: 2),
-                Text(note, style: Theme.of(context).textTheme.bodySmall),
-              ],
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -193,8 +210,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         if (children.isEmpty)
           Text(empty ?? 'Nothing to show for this period.')
@@ -223,7 +259,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: fraction.toDouble(),
-                minHeight: 10,
+                minHeight: 12,
+                borderRadius: BorderRadius.circular(6),
+                color: colors.primary,
                 backgroundColor: colors.surfaceContainerHighest,
               ),
             ),

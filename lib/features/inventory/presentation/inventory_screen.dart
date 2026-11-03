@@ -1,4 +1,5 @@
 
+import 'package:ai_business_os/app/stat_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -255,46 +256,109 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ListView(
                           padding: const EdgeInsets.all(16),
                           children: [
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Inventory overview',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('Products: ${_items.length}'),
-                                    Text(
-                                      'Total units: ${_items.fold<num>(0, (sum, item) => sum + (item['quantity'] as num))}',
-                                    ),
-                                  ],
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: StatTile(
+                                    icon: Icons.category_rounded,
+                                    accent: const Color(0xFF2B6CB0),
+                                    label: 'Products',
+                                    value: '${_items.length}',
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: StatTile(
+                                    icon: Icons.inventory_2_rounded,
+                                    accent: const Color(0xFF145C4A),
+                                    label: 'Total units',
+                                    value: _items
+                                        .fold<num>(
+                                          0,
+                                          (sum, item) =>
+                                              sum + (item['quantity'] as num),
+                                        )
+                                        .toString(),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: StatTile(
+                                    icon: Icons.remove_shopping_cart_rounded,
+                                    accent: const Color(0xFFB4232F),
+                                    label: 'Out of stock',
+                                    value:
+                                        '${_items.where((i) => (i['quantity'] as num) <= 0).length}',
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             for (final item in _items)
                               Card(
                                 child: Padding(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(14),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        item['name'].toString(),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Available: ${item['quantity']} ${item['unit']}',
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withValues(alpha: 0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.inventory_2_rounded,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['name'].toString(),
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleSmall
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                Text(
+                                                  'Available: ${item['quantity']} ${item['unit']}',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: (item['quantity']
+                                                                    as num) <=
+                                                                0
+                                                            ? Theme.of(context)
+                                                                .colorScheme
+                                                                .error
+                                                            : Theme.of(context)
+                                                                .colorScheme
+                                                                .onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 12),
                                       Wrap(

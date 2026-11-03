@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -275,6 +275,47 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFB87514), Color(0xFF8A4F06)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.receipt_long_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Total shown below',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Text(
+                                  'PKR ${_expenses.fold<num>(0, (s, x) => s + ((x['amount'] as num?) ?? 0)).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     Text(
                       'Expenses (${_expenses.length})',
                       style: Theme.of(context).textTheme.titleLarge,
@@ -295,26 +336,73 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     else
                       for (final expense in _expenses)
                         Card(
-                          child: ListTile(
-                            leading: const CircleAvatar(
-                              child: Icon(Icons.payments_outlined),
-                            ),
-                            title: Text(
-                              '${expense['category']} - PKR '
-                              '${((expense['amount'] as num?) ?? 0).toStringAsFixed(2)}',
-                            ),
-                            subtitle: Text(
-                              '${_dateText(expense['expense_date'])}'
-                              '${(expense['description']?.toString().trim().isNotEmpty ?? false) ? '\n${expense['description']}' : ''}',
-                            ),
-                            isThreeLine:
-                                expense['description']?.toString().trim().isNotEmpty ??
-                                    false,
-                            trailing: IconButton(
-                              tooltip: 'Remove expense',
-                              onPressed:
-                                  _busy ? null : () => _archiveExpense(expense),
-                              icon: const Icon(Icons.delete_outline),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: _categoryColor(
+                                      expense['category'].toString(),
+                                    ).withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    _categoryIcon(
+                                      expense['category'].toString(),
+                                    ),
+                                    color: _categoryColor(
+                                      expense['category'].toString(),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${expense['category']}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      Text(
+                                        '${_dateText(expense['expense_date'])}'
+                                        '${(expense['description']?.toString().trim().isNotEmpty ?? false) ? ' · ${expense['description']}' : ''}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  'PKR ${((expense['amount'] as num?) ?? 0).toStringAsFixed(2)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                IconButton(
+                                  tooltip: 'Remove expense',
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _archiveExpense(expense),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -508,5 +596,43 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
         ),
       ],
     );
+  }
+}
+
+IconData _categoryIcon(String category) {
+  switch (category) {
+    case 'Rent':
+      return Icons.home_work_rounded;
+    case 'Salary':
+      return Icons.badge_rounded;
+    case 'Utilities':
+      return Icons.bolt_rounded;
+    case 'Transport':
+      return Icons.local_shipping_rounded;
+    case 'Supplies':
+      return Icons.shopping_basket_rounded;
+    case 'Marketing':
+      return Icons.campaign_rounded;
+    default:
+      return Icons.receipt_long_rounded;
+  }
+}
+
+Color _categoryColor(String category) {
+  switch (category) {
+    case 'Rent':
+      return const Color(0xFF2B6CB0);
+    case 'Salary':
+      return const Color(0xFF7C3AED);
+    case 'Utilities':
+      return const Color(0xFFA15C08);
+    case 'Transport':
+      return const Color(0xFF0E9AA7);
+    case 'Supplies':
+      return const Color(0xFF145C4A);
+    case 'Marketing':
+      return const Color(0xFFD9534F);
+    default:
+      return const Color(0xFF6B7C75);
   }
 }

@@ -1,4 +1,5 @@
 import 'package:ai_business_os/features/staff/business_role.dart';
+import 'package:ai_business_os/app/stat_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -579,32 +580,86 @@ class _ProductsScreenState extends State<ProductsScreen> {
           else
             for (final product in _products)
               Card(
-                child: ListTile(
-                  leading: const Icon(Icons.inventory_2_outlined),
-                  title: Text(product['name'].toString()),
-                  subtitle: Text(
-                    '${product['unit']} \u2022 Price: '
-                    '${((product['price'] as num?) ?? 0).toStringAsFixed(2)} \u2022 '
-                    '${_isStaff ? '' : (product['cost_price'] == null ? 'No cost set' : 'Cost: ${(product['cost_price'] as num).toStringAsFixed(2)}')}'
-                    '${product['low_stock_threshold'] == null ? '' : ' \u2022 Low at ${(product['low_stock_threshold'] as num).toStringAsFixed((product['low_stock_threshold'] as num) % 1 == 0 ? 0 : 3)}'}',
-                  ),
-                  trailing: _isStaff ? null : Wrap(
-                    spacing: 0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                  child: Row(
                     children: [
-                      IconButton(
-                        tooltip: 'Edit product',
-                        onPressed: _saving || _loading
-                            ? null
-                            : () => _editProduct(product),
-                        icon: const Icon(Icons.edit_outlined),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
-                      IconButton(
-                        tooltip: 'Archive product',
-                        onPressed: _saving || _loading
-                            ? null
-                            : () => _archiveProduct(product),
-                        icon: const Icon(Icons.archive_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product['name'].toString(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                InfoPill(product['unit'].toString()),
+                                InfoPill(
+                                  'Price ${((product['price'] as num?) ?? 0).toStringAsFixed(2)}',
+                                  color: const Color(0xFF18794E),
+                                ),
+                                if (!_isStaff)
+                                  InfoPill(
+                                    product['cost_price'] == null
+                                        ? 'No cost set'
+                                        : 'Cost ${(product['cost_price'] as num).toStringAsFixed(2)}',
+                                    color: product['cost_price'] == null
+                                        ? const Color(0xFFB4232F)
+                                        : null,
+                                  ),
+                                if (product['low_stock_threshold'] != null)
+                                  InfoPill(
+                                    'Low at ${(product['low_stock_threshold'] as num).toStringAsFixed((product['low_stock_threshold'] as num) % 1 == 0 ? 0 : 3)}',
+                                    color: const Color(0xFFA15C08),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
+                      if (!_isStaff)
+                        Wrap(
+                          spacing: 0,
+                          children: [
+                            IconButton(
+                              tooltip: 'Edit product',
+                              onPressed: _saving || _loading
+                                  ? null
+                                  : () => _editProduct(product),
+                              icon: const Icon(Icons.edit_outlined),
+                            ),
+                            IconButton(
+                              tooltip: 'Archive product',
+                              onPressed: _saving || _loading
+                                  ? null
+                                  : () => _archiveProduct(product),
+                              icon: const Icon(Icons.archive_outlined),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
