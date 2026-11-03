@@ -76,8 +76,15 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Business OS')),
-      body: Center(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1B7A62), Color(0xFF145C4A), Color(0xFF0E4034)],
+          ),
+        ),
+        child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
@@ -90,12 +97,36 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        Icons.business_center_outlined,
-                        size: 48,
-                        color: colors.primary,
+                      Center(
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF1B7A62), Color(0xFF0E4034)],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Icon(
+                            Icons.storefront_rounded,
+                            size: 34,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+                      Text(
+                        'AI Business OS',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
                         _isSignUp ? 'Create your account' : 'Welcome back',
                         textAlign: TextAlign.center,
@@ -208,6 +239,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

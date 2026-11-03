@@ -82,8 +82,26 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(Icons.storefront_outlined, size: 48),
-                      const SizedBox(height: 12),
+                      Center(
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF1B7A62), Color(0xFF0E4034)],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Icon(
+                            Icons.storefront_rounded,
+                            size: 34,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
                         'Create your business workspace',
                         style: Theme.of(context).textTheme.headlineSmall,
