@@ -11,11 +11,7 @@ class ProductsScreen extends StatefulWidget {
 }
 
 class _ProductsScreenState extends State<ProductsScreen> {
-  final _nameController = TextEditingController();
-  final _unitController = TextEditingController();
-  final _priceController = TextEditingController(text: '0');
-  final _costController = TextEditingController();
-  final _lowController = TextEditingController();
+
 
   bool _loading = true;
   bool _saving = false;
@@ -34,11 +30,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _unitController.dispose();
-    _priceController.dispose();
-    _costController.dispose();
-    _lowController.dispose();
+
     super.dispose();
   }
 
@@ -116,94 +108,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
-  Future<void> _addProduct() async {
-    final name = _nameController.text.trim();
-    final unit = _unitController.text.trim();
-    final price = num.tryParse(_priceController.text.trim());
-    final costText = _costController.text.trim();
-    final cost = costText.isEmpty ? null : num.tryParse(costText);
-    final costInvalid =
-        costText.isNotEmpty && (cost == null || !cost.isFinite || cost < 0);
-    final lowText = _lowController.text.trim();
-    final low = lowText.isEmpty ? null : num.tryParse(lowText);
-    final lowInvalid =
-        lowText.isNotEmpty && (low == null || !low.isFinite || low < 0);
-
-    if (name.isEmpty || unit.isEmpty ||
-        price == null || !price.isFinite || price < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid price (0 or greater), name and unit.')),
-      );
-      return;
-    }
-
-    if (name.isEmpty || unit.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter product name and unit.')),
-      );
-      return;
-    }
-
-    if (costInvalid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid cost price (0 or greater) or leave it empty.'),
-        ),
-      );
-      return;
-    }
-
-    if (lowInvalid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid low-stock level (0 or greater) or leave it empty.'),
-        ),
-      );
-      return;
-    }
-
-    final businessId = _businessId;
-    if (businessId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Business is not loaded. Refresh and try again.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-
-    try {
-      await _client.from('products').insert({
-        'business_id': businessId,
-        'name': name,
-        'unit': unit,
-        'price': price,
-        'cost_price': cost,
-        'low_stock_threshold': low,
-      });
-
-      _nameController.clear();
-      _unitController.clear();
-      _priceController.text = '0';
-      _costController.clear();
-      _lowController.clear();
-
-      await _loadProducts();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product saved successfully.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save product: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  Future<void> _openAddPage() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (_) => _AddProductPage(businessId: _businessId),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    await _loadProducts();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Product saved successfully.')),
+    );
   }
 
   Future<void> _editProduct(Map<String, dynamic> product) async {
@@ -446,9 +363,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return Scaffold(
+      floatingActionButton: _isStaff
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _saving || _loading ? null : _openAddPage,
+              icon: const Icon(Icons.add),
+              label: const Text('Add product'),
+            ),
       appBar: AppBar(
         title: const Text('Products'),
         actions: [
@@ -460,96 +382,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
-          Card(
-            color: colors.secondaryContainer,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Business products',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Products are saved to your business database. '
-                    'Price and stock management will be added separately.',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (!_isStaff) ...[
-          const SizedBox(height: 24),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Product name',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Price',
-                hintText: '0.00',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _costController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Cost price (optional)',
-                hintText: 'What you paid for one unit',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _lowController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Low-stock alert level (optional)',
-                hintText: 'Empty = 5',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _unitController,
-            decoration: const InputDecoration(
-              labelText: 'Unit label',
-              hintText: 'For example: piece, bottle, kg',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              onPressed: _saving || _loading ? null : _addProduct,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add),
-              label: Text(_saving ? 'Please wait...' : 'Save product'),
-            ),
-          ),
-          ],
-          const SizedBox(height: 28),
+
           Text(
             'Saved products (${_products.length})',
             style: Theme.of(context).textTheme.titleLarge,
@@ -665,6 +500,241 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
               ),
         ],
+      ),
+    );
+  }
+}
+
+class _AddProductPage extends StatefulWidget {
+  const _AddProductPage({required this.businessId});
+
+  final String? businessId;
+
+  @override
+  State<_AddProductPage> createState() => _AddProductPageState();
+}
+
+class _AddProductPageState extends State<_AddProductPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _priceController = TextEditingController(text: '0');
+  final _costController = TextEditingController();
+  final _lowController = TextEditingController();
+  bool _saving = false;
+
+  static const _units = ['piece', 'kg', 'bottle', 'dozen', 'box', 'litre'];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _unitController.dispose();
+    _priceController.dispose();
+    _costController.dispose();
+    _lowController.dispose();
+    super.dispose();
+  }
+
+  String? _optionalNumber(String? value, String message) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final n = double.tryParse(text);
+    if (n == null || !n.isFinite || n < 0) return message;
+    return null;
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final businessId = widget.businessId;
+    if (businessId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Business is not loaded. Refresh and try again.'),
+        ),
+      );
+      return;
+    }
+
+    final costText = _costController.text.trim();
+    final lowText = _lowController.text.trim();
+
+    setState(() => _saving = true);
+    try {
+      await Supabase.instance.client.from('products').insert({
+        'business_id': businessId,
+        'name': _nameController.text.trim(),
+        'unit': _unitController.text.trim(),
+        'price': num.parse(_priceController.text.trim()),
+        'cost_price': costText.isEmpty ? null : num.parse(costText),
+        'low_stock_threshold': lowText.isEmpty ? null : num.parse(lowText),
+      });
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save product: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add product'),
+        leading: IconButton(
+          tooltip: 'Close',
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          enabled: !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Product name',
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Enter product name.'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final u in _units)
+                              ActionChip(
+                                label: Text(u),
+                                onPressed: _saving
+                                    ? null
+                                    : () => setState(
+                                          () => _unitController.text = u,
+                                        ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _unitController,
+                          enabled: !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit label',
+                            hintText: 'For example: piece, bottle, kg',
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Enter unit label.'
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: _priceController,
+                          enabled: !_saving,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Selling price',
+                            prefixText: 'PKR ',
+                          ),
+                          validator: (v) {
+                            final price = double.tryParse(v?.trim() ?? '');
+                            if (price == null || !price.isFinite || price < 0) {
+                              return 'Enter a valid price (0 or greater).';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _costController,
+                          enabled: !_saving,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Cost price (optional)',
+                            prefixText: 'PKR ',
+                            helperText:
+                                'Visible to the owner only. Used to work out profit.',
+                          ),
+                          validator: (v) => _optionalNumber(
+                            v,
+                            'Enter a valid cost (0 or greater) or leave empty.',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _lowController,
+                          enabled: !_saving,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Low-stock alert level (optional)',
+                            helperText: 'Warn when this many or fewer are left. Empty = 5.',
+                          ),
+                          validator: (v) => _optionalNumber(
+                            v,
+                            'Enter 0 or greater, or leave empty.',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.outlineVariant)),
+          ),
+          child: FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save product'),
+          ),
+        ),
       ),
     );
   }

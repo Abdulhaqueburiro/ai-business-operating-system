@@ -135,18 +135,39 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(height: 8),
                       Text(
                         _isSignUp
-                            ? 'Start setting up your business workspace.'
+                            ? 'Apna karobar, ek jagah. Start setting up your workspace.'
                             : 'Sign in to your business workspace.',
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+                      SegmentedButton<bool>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Sign in'),
+                          ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            label: Text('Create account'),
+                          ),
+                        ],
+                        selected: {_isSignUp},
+                        onSelectionChanged: _busy
+                            ? null
+                            : (value) => setState(() {
+                                  _isSignUp = value.first;
+                                  _message = null;
+                                }),
+                      ),
+                      const SizedBox(height: 20),
                       if (_isSignUp) ...[
                         TextFormField(
                           controller: _nameController,
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Your name',
-                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.person_outline),
                           ),
                           validator: (value) =>
                               (value == null || value.trim().isEmpty)
@@ -161,7 +182,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         autofillHints: const [AutofillHints.email],
                         decoration: const InputDecoration(
                           labelText: 'Email',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.mail_outline),
                         ),
                         validator: (value) {
                           final email = value?.trim() ?? '';
@@ -179,7 +200,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             : const [AutofillHints.password],
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             onPressed: () => setState(
                               () => _obscurePassword = !_obscurePassword,

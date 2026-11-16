@@ -135,10 +135,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       return;
     }
 
-    final created = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _AddExpenseDialog(
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (_) => _AddExpenseDialog(
         onSubmit: ({
           required category,
           required amount,
@@ -158,6 +158,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             },
           );
         },
+        ),
       ),
     );
 
@@ -504,97 +505,164 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add expense'),
-      content: SizedBox(
-        width: 480,
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final colors = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add expense'),
+        leading: IconButton(
+          tooltip: 'Close',
+          onPressed:
+              _submitting ? null : () => Navigator.of(context).pop(false),
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _category,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final category in kExpenseCategories)
-                      DropdownMenuItem<String>(
-                        value: category,
-                        child: Text(category),
-                      ),
-                  ],
-                  onChanged: _submitting
-                      ? null
-                      : (value) => setState(() => _category = value),
-                  validator: (value) =>
-                      value == null ? 'Choose a category.' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _amountController,
-                  enabled: !_submitting,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Amount (PKR)',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) => _parseAmount(value) == null
-                      ? 'Enter an amount greater than zero.'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _submitting ? null : _pickDate,
-                  icon: const Icon(Icons.calendar_today_outlined),
-                  label: Text('Date: ${_displayDate(_date)}'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descriptionController,
-                  enabled: !_submitting,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Note (optional)',
-                    border: OutlineInputBorder(),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Category',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            for (final category in kExpenseCategories)
+                              _categoryTile(category),
+                          ],
+                        ),
+                        FormField<String>(
+                          validator: (_) =>
+                              _category == null ? 'Choose a category.' : null,
+                          builder: (state) => state.hasError
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    state.errorText!,
+                                    style: TextStyle(color: colors.error),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                if (_submitError != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _submitError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: _amountController,
+                          enabled: !_submitting,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Amount',
+                            prefixText: 'PKR ',
+                          ),
+                          validator: (value) => _parseAmount(value) == null
+                              ? 'Enter an amount greater than zero.'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _submitting ? null : _pickDate,
+                          icon: const Icon(Icons.calendar_today_outlined),
+                          label: Text('Date: ${_displayDate(_date)}'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _descriptionController,
+                          enabled: !_submitting,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Note (optional)',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
+                if (_submitError != null)
+                  Text(_submitError!, style: TextStyle(color: colors.error)),
               ],
             ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.outlineVariant)),
+          ),
+          child: FilledButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save expense'),
+          ),
         ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save expense'),
+      ),
+    );
+  }
+
+  Widget _categoryTile(String category) {
+    final selected = _category == category;
+    final color = _categoryColor(category);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: _submitting ? null : () => setState(() => _category = category),
+      child: Container(
+        width: 96,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: selected ? 0.18 : 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? color : Colors.transparent,
+            width: 2,
+          ),
         ),
-      ],
+        child: Column(
+          children: [
+            Icon(_categoryIcon(category), color: color),
+            const SizedBox(height: 6),
+            Text(
+              category,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

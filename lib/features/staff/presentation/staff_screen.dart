@@ -166,18 +166,29 @@ class _StaffScreenState extends State<StaffScreen> {
     final role = person['role']?.toString();
     final isMe = person['is_me'] == true;
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.person_outline),
-      title: Text(person['email']?.toString() ?? 'Unknown'),
-      subtitle: Text(isMe ? '${_roleLabel(role)} (you)' : _roleLabel(role)),
-      trailing: role == 'staff'
-          ? IconButton(
-              tooltip: 'Remove staff member',
-              onPressed: _busy ? null : () => _remove(person),
-              icon: const Icon(Icons.person_remove_outlined),
-            )
-          : null,
+    final colors = Theme.of(context).colorScheme;
+    final email = person['email']?.toString() ?? 'Unknown';
+
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: colors.primary.withValues(alpha: 0.14),
+          foregroundColor: colors.primary,
+          child: Text(
+            email.substring(0, 1).toUpperCase(),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        title: Text(email, overflow: TextOverflow.ellipsis),
+        subtitle: Text(isMe ? '${_roleLabel(role)} (you)' : _roleLabel(role)),
+        trailing: role == 'staff'
+            ? IconButton(
+                tooltip: 'Remove staff member',
+                onPressed: _busy ? null : () => _remove(person),
+                icon: const Icon(Icons.person_remove_outlined),
+              )
+            : null,
+      ),
     );
   }
 
@@ -282,9 +293,14 @@ class _StaffScreenState extends State<StaffScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [_content()],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [_content()],
+          ),
+        ),
       ),
     );
   }

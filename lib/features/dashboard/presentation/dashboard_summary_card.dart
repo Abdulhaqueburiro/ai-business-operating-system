@@ -1,4 +1,4 @@
-﻿import 'package:ai_business_os/app/animations.dart';
+import 'package:ai_business_os/app/animations.dart';
 import 'package:ai_business_os/app/app_theme.dart';
 import 'package:ai_business_os/features/dashboard/presentation/dashboard_charts.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +51,13 @@ Color _goodOrBad(BuildContext context, num value) {
 const List<String> _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 class DashboardSummaryCard extends StatefulWidget {
-  const DashboardSummaryCard({super.key});
+  const DashboardSummaryCard({super.key, this.onLoaded, this.middle});
+
+  /// Called with the database numbers each time they load.
+  final void Function(Map<String, dynamic> summary)? onLoaded;
+
+  /// Shown between the profit card and the tiles (the AI chat on Home).
+  final Widget? middle;
 
   @override
   State<DashboardSummaryCard> createState() => _DashboardSummaryCardState();
@@ -143,6 +149,7 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
         _categories = categories;
         _loading = false;
       });
+      widget.onLoaded?.call(_data!);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -512,18 +519,60 @@ class _DashboardSummaryCardState extends State<DashboardSummaryCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FadeSlideIn(child: _buildHero(context)),
-        if (_week.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          FadeSlideIn(
-            delay: step,
-            child: _buildWeekChart(context),
-          ),
-        ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 640;
+            final hero = FadeSlideIn(child: _buildHero(context));
+            final chart = _week.isEmpty
+                ? null
+                : FadeSlideIn(delay: step, child: _buildWeekChart(context));
+            final middle = widget.middle;
+
+            if (wide) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (chart != null)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: hero),
+                        const SizedBox(width: 14),
+                        Expanded(child: chart),
+                      ],
+                    )
+                  else
+                    hero,
+                  if (middle != null) ...[
+                    const SizedBox(height: 14),
+                    middle,
+                  ],
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                hero,
+                if (middle != null) ...[
+                  const SizedBox(height: 14),
+                  middle,
+                ],
+                if (chart != null) ...[
+                  const SizedBox(height: 14),
+                  chart,
+                ],
+              ],
+            );
+          },
+        ),
         const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final tileWidth = (constraints.maxWidth - 12) / 2;
+            final columns = constraints.maxWidth >= 640 ? 4 : 2;
+            final tileWidth =
+                (constraints.maxWidth - 12 * (columns - 1)) / columns;
 
             final tiles = <_MetricTile>[
               _MetricTile(

@@ -1,4 +1,4 @@
-import 'package:ai_business_os/app/main_shell.dart';
+﻿import 'package:ai_business_os/app/main_shell.dart';
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
@@ -21,20 +21,25 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AI Business OS',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
-      home: enableAuthentication
-          ? AuthGate(
-              backendStatusMessage: backendStatusMessage,
-              testSupabaseConnection: testSupabaseConnection,
-            )
-          : MainShell(
-              backendStatusMessage: backendStatusMessage,
-              testSupabaseConnection: testSupabaseConnection,
-            ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppTheme.mode,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'AI Business OS',
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: mode,
+          home: enableAuthentication
+              ? AuthGate(
+                  backendStatusMessage: backendStatusMessage,
+                  testSupabaseConnection: testSupabaseConnection,
+                )
+              : MainShell(
+                  backendStatusMessage: backendStatusMessage,
+                  testSupabaseConnection: testSupabaseConnection,
+                ),
+        );
+      },
     );
   }
 }

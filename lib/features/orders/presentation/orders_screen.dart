@@ -38,6 +38,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
   String? _error;
   String? _businessId;
   List<Map<String, dynamic>> _orders = [];
+  String _filter = 'all';
+
+  List<Map<String, dynamic>> get _visibleOrders => _filter == 'all'
+      ? _orders
+      : [for (final o in _orders) if (o['status'] == _filter) o];
 
   @override
   void initState() {
@@ -169,10 +174,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     if (!mounted) return;
 
-    final created = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _NewOrderDialog(
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (_) => _NewOrderDialog(
         products: products,
         customers: customers,
         onSubmit: ({
@@ -196,6 +201,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             },
           );
         },
+        ),
       ),
     );
 
@@ -210,9 +216,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _openOrder(Map<String, dynamic> order) async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => _OrderDetailDialog(order: order),
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => _OrderDetailDialog(order: order),
+      ),
     );
 
     if (result == null || !mounted) return;
@@ -245,7 +252,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales & Orders'),
+        title: const Text('Orders'),
         actions: [
           IconButton(
             tooltip: 'Refresh orders',
@@ -324,11 +331,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'Orders',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final f in const [
+                            ['all', 'All'],
+                            ['pending', 'Pending'],
+                            ['confirmed', 'Confirmed'],
+                            ['cancelled', 'Cancelled'],
+                          ])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(f[1]),
+                                selected: _filter == f[0],
+                                showCheckmark: false,
+                                selectedColor: colors.primary,
+                                labelStyle: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: _filter == f[0]
+                                      ? colors.onPrimary
+                                      : colors.onSurface,
+                                ),
+                                onSelected: (_) =>
+                                    setState(() => _filter = f[0]),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     if (_orders.isEmpty)
                       const Card(
                         child: Padding(
@@ -342,7 +375,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         ),
                       )
                     else
-                      for (final order in _orders)
+                      for (final order in _visibleOrders)
                         Card(
                           clipBehavior: Clip.antiAlias,
                           child: InkWell(
@@ -559,9 +592,20 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
     return phone.isEmpty ? name : '$name - $phone';
   }
 
+  void _step(_OrderLine line, double delta) {
+    final current = _parseQuantity(line.quantity.text) ?? 0;
+    var next = current + delta;
+    if (next < 1) next = 1;
+    setState(() => line.quantity.text = _formatNumber(next));
+  }
+
   Widget _buildLine(int index, _OrderLine line) {
     final product = _byId[line.productId];
     final unit = product?['unit']?.toString();
+    final quantity = _parseQuantity(line.quantity.text);
+    final lineTotal = (product == null || quantity == null)
+        ? null
+        : _priceOf(product).toDouble() * quantity;
 
     return Padding(
       key: ObjectKey(line),
@@ -574,7 +618,6 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
             isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Product ${index + 1}',
-              border: const OutlineInputBorder(),
             ),
             items: widget.products.map((p) {
               return DropdownMenuItem<String>(
@@ -599,23 +642,49 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
           ),
           const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              IconButton.outlined(
+                tooltip: 'Less',
+                onPressed: _submitting ? null : () => _step(line, -1),
+                icon: const Icon(Icons.remove),
+              ),
+              const SizedBox(width: 6),
+              SizedBox(
+                width: 96,
                 child: TextFormField(
                   controller: line.quantity,
                   enabled: !_submitting,
+                  textAlign: TextAlign.center,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   decoration: InputDecoration(
                     labelText: 'Quantity',
                     suffixText: unit,
-                    border: const OutlineInputBorder(),
                   ),
                   onChanged: (_) => setState(() {}),
                   validator: (value) => _parseQuantity(value) == null
-                      ? 'Enter a quantity greater than zero.'
+                      ? 'Enter a quantity above zero.'
                       : null,
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton.outlined(
+                tooltip: 'More',
+                onPressed: _submitting ? null : () => _step(line, 1),
+                icon: const Icon(Icons.add),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 14, left: 8),
+                  child: Text(
+                    lineTotal == null
+                        ? ''
+                        : 'PKR ${lineTotal.toStringAsFixed(2)}',
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
               IconButton(
@@ -638,106 +707,212 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
     );
   }
 
+  Widget _cardTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        text,
+        style: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create sales order'),
-      content: SizedBox(
-        width: 480,
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final amber = dark ? const Color(0xFFF0B25A) : const Color(0xFFA15C08);
+    final chosen = [
+      for (final c in widget.customers)
+        if (c['id'].toString() == _customerId) c,
+    ];
+    final chosenName = chosen.isEmpty ? null : chosen.first['name']?.toString();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New order'),
+        leading: IconButton(
+          tooltip: 'Close',
+          onPressed:
+              _submitting ? null : () => Navigator.of(context).pop(false),
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                for (var i = 0; i < _lines.length; i++) _buildLine(i, _lines[i]),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _submitting
-                        ? null
-                        : () => setState(() => _lines.add(_OrderLine())),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add item'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _cardTitle('Customer'),
+                        if (widget.customers.isNotEmpty) ...[
+                          DropdownButtonFormField<String?>(
+                            initialValue: _customerId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Saved customer (optional)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('No saved customer'),
+                              ),
+                              for (final customer in widget.customers)
+                                DropdownMenuItem<String?>(
+                                  value: customer['id'].toString(),
+                                  child: Text(
+                                    _customerLabel(customer),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: _submitting
+                                ? null
+                                : (value) => setState(() {
+                                      _customerId = value;
+                                      if (value == null) _onCredit = false;
+                                    }),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (_customerId == null)
+                          TextFormField(
+                            controller: _customerController,
+                            enabled: !_submitting,
+                            decoration: const InputDecoration(
+                              labelText: 'Customer name (optional)',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (widget.customers.isNotEmpty) ...[
-                  DropdownButtonFormField<String?>(
-                    initialValue: _customerId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Saved customer (optional)',
-                      border: OutlineInputBorder(),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _cardTitle('Items'),
+                        for (var i = 0; i < _lines.length; i++)
+                          _buildLine(i, _lines[i]),
+                        OutlinedButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : () => setState(() => _lines.add(_OrderLine())),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add product'),
+                        ),
+                      ],
                     ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('No saved customer'),
+                  ),
+                ),
+                if (_customerId != null)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _cardTitle('Payment'),
+                          SegmentedButton<bool>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment<bool>(
+                                value: false,
+                                icon: Icon(Icons.payments_outlined),
+                                label: Text('Cash'),
+                              ),
+                              ButtonSegment<bool>(
+                                value: true,
+                                icon: Icon(Icons.menu_book_outlined),
+                                label: Text('Udhaar'),
+                              ),
+                            ],
+                            selected: {_onCredit},
+                            onSelectionChanged: _submitting
+                                ? null
+                                : (value) =>
+                                    setState(() => _onCredit = value.first),
+                          ),
+                          if (_onCredit) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: amber.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: amber),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Sell on credit: PKR '
+                                      '${_estimatedTotal.toStringAsFixed(2)} '
+                                      'will be added to '
+                                      '${chosenName ?? 'the customer'}'
+                                      "'s udhaar once the order is confirmed.",
+                                      style: TextStyle(
+                                        color: amber,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      for (final customer in widget.customers)
-                        DropdownMenuItem<String?>(
-                          value: customer['id'].toString(),
-                          child: Text(
-                            _customerLabel(customer),
-                            overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _cardTitle('Notes (optional)'),
+                        TextFormField(
+                          controller: _notesController,
+                          enabled: !_submitting,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            hintText: 'e.g. Deliver by evening',
                           ),
                         ),
-                    ],
-                    onChanged: _submitting
-                        ? null
-                        : (value) => setState(() => _customerId = value),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (_customerId != null)
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Sell on credit (udhaar)'),
-                    subtitle: const Text(
-                      'Customer pays later. It is added to what they owe '
-                      'once the order is confirmed.',
+                      ],
                     ),
-                    value: _onCredit,
-                    onChanged: _submitting
-                        ? null
-                        : (value) => setState(() => _onCredit = value),
-                  ),
-                if (_customerId == null)
-                  TextFormField(
-                    controller: _customerController,
-                    enabled: !_submitting,
-                    decoration: const InputDecoration(
-                      labelText: 'Customer name (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _notesController,
-                  enabled: !_submitting,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes (optional)',
-                    border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 16),
                 Text(
-                  'Estimated total: PKR ${_estimatedTotal.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Text(
                   'The final total is calculated by the server from current '
                   'product prices.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 12),
                   Text(
                     _submitError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(color: colors.error),
                   ),
                 ],
               ],
@@ -745,22 +920,52 @@ class _NewOrderDialogState extends State<_NewOrderDialog> {
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.outlineVariant)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total · ${_lines.length} '
+                      '${_lines.length == 1 ? 'item' : 'items'}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                    Text(
+                      'PKR ${_estimatedTotal.toStringAsFixed(2)}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save order'),
+              ),
+            ],
+          ),
         ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Create order'),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -864,115 +1069,304 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final amber = dark ? const Color(0xFFF0B25A) : const Color(0xFFA15C08);
     final customer = order['customer_name']?.toString().trim() ?? '';
     final notes = order['notes']?.toString().trim() ?? '';
     final total = (order['total_amount'] as num?) ?? 0;
+    final placed = DateTime.tryParse(order['created_at']?.toString() ?? '')
+        ?.toLocal();
+    final placedText = placed == null
+        ? 'Date unavailable'
+        : '${placed.day.toString().padLeft(2, '0')}/'
+            '${placed.month.toString().padLeft(2, '0')}/${placed.year}';
+    final onCredit = order['on_credit'] == true;
+    final canAct = _status == 'pending' || _status == 'confirmed';
 
-    return AlertDialog(
-      title: Text('Order #${order['order_number']}'),
-      content: SizedBox(
-        width: 480,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Order #${order['order_number']}'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(child: StatusChip(status: _status)),
+          ),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              Text('Status: $_status'),
-              if (order['on_credit'] == true)
-                const Text('Payment: Credit (udhaar)'),
-              Text('Customer: ${customer.isEmpty ? 'No customer name' : customer}'),
-              if (notes.isNotEmpty) Text('Notes: $notes'),
-              const SizedBox(height: 12),
-              Text('Items', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 4),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _itemsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: LinearProgressIndicator(),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return Text('Could not load items: ${snapshot.error}');
-                  }
-                  final items = snapshot.data ?? [];
-                  if (items.isEmpty) {
-                    return const Text('This order has no items.');
-                  }
-                  return Column(
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor:
+                                colors.primary.withValues(alpha: 0.14),
+                            foregroundColor: colors.primary,
+                            child: Text(
+                              customer.isEmpty
+                                  ? '?'
+                                  : customer.substring(0, 1).toUpperCase(),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              customer.isEmpty ? 'No customer name' : customer,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (onCredit) const StatusChip(status: 'udhaar'),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Placed',
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
+                          Text(
+                            placedText,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final row in items)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Text(
-                            '${_productOf(row)?['name'] ?? 'Unknown product'}: '
-                            '${_formatNumber(row['quantity'] as num?)} '
-                            '${_productOf(row)?['unit'] ?? ''} x '
-                            '${((row['unit_price'] as num?) ?? 0).toStringAsFixed(2)} = '
-                            '${((row['line_total'] as num?) ?? 0).toStringAsFixed(2)}',
+                      Text(
+                        'Items',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _itemsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: LinearProgressIndicator(),
+                            );
+                          }
+                          if (snapshot.hasError) {
+                            return Text(
+                              'Could not load items: ${snapshot.error}',
+                            );
+                          }
+                          final items = snapshot.data ?? [];
+                          if (items.isEmpty) {
+                            return const Text('This order has no items.');
+                          }
+                          return Column(
+                            children: [
+                              for (final row in items)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${_productOf(row)?['name'] ?? 'Unknown product'}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${_formatNumber(row['quantity'] as num?)} '
+                                              '${_productOf(row)?['unit'] ?? ''} x '
+                                              '${((row['unit_price'] as num?) ?? 0).toStringAsFixed(2)}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: colors
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        ((row['line_total'] as num?) ?? 0)
+                                            .toStringAsFixed(2),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                        ),
+                          Text(
+                            'PKR ${total.toStringAsFixed(2)}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.primary,
+                                ),
+                          ),
+                        ],
+                      ),
                     ],
-                  );
-                },
-              ),
-              const Divider(),
-              Text(
-                'Total: PKR ${total.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
               ),
               if (_status == 'pending')
-                const Text('Confirming deducts stock from inventory.'),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: amber),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          onCredit
+                              ? 'When you confirm, stock goes down and '
+                                  'PKR ${total.toStringAsFixed(2)} is added '
+                                  'to the customer\'s udhaar.'
+                              : 'Confirming deducts stock from inventory.',
+                          style: TextStyle(color: amber),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              if (notes.isNotEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notes',
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(notes),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_error != null) ...[
+                const SizedBox(height: 4),
+                Text(_error!, style: TextStyle(color: colors.error)),
               ],
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-        if (_status == 'pending' || _status == 'confirmed')
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () => _act(
-                      function: 'cancel_sales_order',
-                      question: _status == 'confirmed'
-                          ? 'Cancel this order? Stock will be returned.'
-                          : 'Cancel this order?',
-                      result: 'cancelled',
+      bottomNavigationBar: canAct
+          ? SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border:
+                      Border(top: BorderSide(color: colors.outlineVariant)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_status == 'pending')
+                      FilledButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => _act(
+                                  function: 'confirm_sales_order',
+                                  question:
+                                      'Confirm this order? Stock will be deducted.',
+                                  result: 'confirmed',
+                                ),
+                        icon: _busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: const Text('Confirm order'),
+                      ),
+                    if (_status == 'pending') const SizedBox(height: 8),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.error.withValues(alpha: 0.12),
+                        foregroundColor: colors.error,
+                      ),
+                      onPressed: _busy
+                          ? null
+                          : () => _act(
+                                function: 'cancel_sales_order',
+                                question: _status == 'confirmed'
+                                    ? 'Cancel this order? Stock will be returned.'
+                                    : 'Cancel this order?',
+                                result: 'cancelled',
+                              ),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Cancel order'),
                     ),
-            child: const Text('Cancel order'),
-          ),
-        if (_status == 'pending')
-          FilledButton(
-            onPressed: _busy
-                ? null
-                : () => _act(
-                      function: 'confirm_sales_order',
-                      question: 'Confirm this order? Stock will be deducted.',
-                      result: 'confirmed',
-                    ),
-            child: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Confirm order'),
-          ),
-      ],
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

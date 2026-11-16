@@ -235,7 +235,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (children.isEmpty)
           Text(empty ?? 'Nothing to show for this period.')
         else
-          ...children,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Column(children: children),
+            ),
+          ),
       ],
     );
   }
@@ -301,6 +306,38 @@ class _ReportsScreenState extends State<ReportsScreen> {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: net < 0
+                  ? [const Color(0xFFB4232F), const Color(0xFF8E1B25)]
+                  : [colors.primary, colors.primary.withValues(alpha: 0.8)],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Net profit', style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text(
+                _money(net),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Gross profit minus expenses',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -310,12 +347,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             _tile('Cost of goods', _money(_num('cost_of_goods'))),
             _tile('Gross profit', _money(_num('gross_profit'))),
             _tile('Expenses', _money(_num('expenses'))),
-            _tile(
-              'Net profit',
-              _money(net),
-              note: 'Gross profit minus expenses',
-              color: net < 0 ? colors.error : null,
-            ),
+
           ],
         ),
         if (missing > 0) ...[
@@ -404,7 +436,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 880),
+          child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Wrap(
@@ -415,6 +450,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ChoiceChip(
                   label: Text(_rangeLabel(range)),
                   selected: _range == range,
+                  showCheckmark: false,
+                  selectedColor: Theme.of(context).colorScheme.primary,
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _range == range
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
                   onSelected: (_) {
                     if (_range == range) return;
                     setState(() => _range = range);
@@ -449,6 +492,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           else if (_report != null)
             _buildReport(),
         ],
+      ),
+        ),
       ),
     );
   }

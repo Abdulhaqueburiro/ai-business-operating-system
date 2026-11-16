@@ -281,12 +281,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final businessId = _businessId;
     if (businessId == null) return;
 
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _LedgerDialog(
-        client: _client,
-        businessId: businessId,
-        customer: customer,
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _LedgerDialog(
+          client: _client,
+          businessId: businessId,
+          customer: customer,
+        ),
       ),
     );
 
@@ -741,65 +742,114 @@ class _LedgerDialogState extends State<_LedgerDialog> {
   Widget build(BuildContext context) {
     final name = widget.customer['name']?.toString() ?? 'Customer';
     final colors = Theme.of(context).colorScheme;
+    final owes = _balance > 0.004;
 
     Widget body;
     if (_loading) {
-      body = const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      body = const Center(child: CircularProgressIndicator());
     } else if (_error != null) {
-      body = Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_error!, style: TextStyle(color: colors.error)),
-          const SizedBox(height: 12),
-          FilledButton(onPressed: _load, child: const Text('Try again')),
-        ],
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, style: TextStyle(color: colors.error)),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _load, child: const Text('Try again')),
+            ],
+          ),
+        ),
       );
     } else {
-      body = SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _balance > 0.004
-                  ? 'Owes PKR ${_balance.toStringAsFixed(2)}'
-                  : _balance < -0.004
-                      ? 'Advance PKR ${(-_balance).toStringAsFixed(2)}'
-                      : 'Nothing owed',
-              style: Theme.of(context).textTheme.titleLarge,
+      body = ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: owes
+                    ? [const Color(0xFFB4232F), const Color(0xFF8E1B25)]
+                    : [colors.primary, colors.primary.withValues(alpha: 0.8)],
+              ),
             ),
-            Text(
-              'Credit sales ${_credit.toStringAsFixed(2)} - '
-              'paid ${_paid.toStringAsFixed(2)}',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  owes
+                      ? 'Balance owed'
+                      : _balance < -0.004
+                          ? 'Advance paid'
+                          : 'Nothing owed',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'PKR ${_balance.abs().toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Credit sales ${_credit.toStringAsFixed(2)} - '
+                  'paid ${_paid.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            if (_entries.isEmpty)
-              const Text('No credit sales or payments yet.')
-            else
-              for (final entry in _entries) _entryTile(entry),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Ledger',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          if (_entries.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('No credit sales or payments yet.')),
+            )
+          else
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Column(
+                  children: [for (final entry in _entries) _entryTile(entry)],
+                ),
+              ),
+            ),
+        ],
       );
     }
 
-    return AlertDialog(
-      title: Text('Udhaar: $name'),
-      content: SizedBox(width: 480, child: body),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+    return Scaffold(
+      appBar: AppBar(title: Text(name)),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: body,
         ),
-        FilledButton(
-          onPressed: (_loading || _error != null || _balance <= 0.004)
-              ? null
-              : _recordPayment,
-          child: const Text('Record payment'),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton.icon(
+            onPressed: (_loading || _error != null || !owes)
+                ? null
+                : _recordPayment,
+            icon: const Icon(Icons.payments_outlined),
+            label: const Text('Record payment'),
+          ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _ChatMessage {
@@ -21,7 +21,10 @@ const List<String> _exampleQuestions = [
 ];
 
 class AssistantScreen extends StatefulWidget {
-  const AssistantScreen({super.key});
+  const AssistantScreen({super.key, this.initialQuestion});
+
+  /// A question to send as soon as the chat opens (from the Home card).
+  final String? initialQuestion;
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -33,6 +36,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
   final List<_ChatMessage> _messages = [];
   bool _sending = false;
   int? _remaining;
+
+  @override
+  void initState() {
+    super.initState();
+    final first = widget.initialQuestion;
+    if (first != null && first.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _send(first);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -128,7 +142,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final background = message.isError
         ? colors.errorContainer
         : message.fromUser
-            ? colors.primaryContainer
+            ? colors.primary
             : colors.surfaceContainerHighest;
 
     return Align(
@@ -138,12 +152,27 @@ class _AssistantScreenState extends State<AssistantScreen> {
         constraints: const BoxConstraints(maxWidth: 560),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(message.fromUser ? 18 : 4),
+              bottomRight: Radius.circular(message.fromUser ? 4 : 18),
+            ),
           ),
-          child: SelectableText(message.text),
+          child: SelectableText(
+            message.text,
+            style: TextStyle(
+              color: message.isError
+                  ? colors.onErrorContainer
+                  : message.fromUser
+                      ? colors.onPrimary
+                      : colors.onSurface,
+              height: 1.35,
+            ),
+          ),
         ),
       ),
     );
@@ -234,7 +263,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     ),
                   ),
                 ),
-                IconButton(
+                IconButton.filled(
                   tooltip: 'Send question',
                   onPressed: _sending ? null : () => _send(),
                   icon: const Icon(Icons.send),

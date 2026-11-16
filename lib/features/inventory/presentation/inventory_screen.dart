@@ -1,5 +1,6 @@
 
 import 'package:ai_business_os/app/stat_tile.dart';
+import 'package:ai_business_os/app/status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,6 +19,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String? _error;
 
   List<Map<String, dynamic>> _items = [];
+
+  String _query = '';
+
+  num _thresholdOf(Map<String, dynamic> item) =>
+      (item['threshold'] as num?) ?? 5;
+
+  Widget _stockPill(Map<String, dynamic> item) {
+    final q = item['quantity'] as num;
+    if (q <= 0) return const StatusChip(status: 'out of stock');
+    if (q <= _thresholdOf(item)) return const StatusChip(status: 'low stock');
+    return const StatusChip(status: 'in stock');
+  }
+
+  List<Map<String, dynamic>> get _visibleItems {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _items;
+    return [
+      for (final i in _items)
+        if (i['name'].toString().toLowerCase().contains(q)) i,
+    ];
+  }
 
   @override
   void initState() {
@@ -54,7 +76,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       final products = await _client
           .from('products')
-          .select('id, name, unit')
+          .select('id, name, unit, low_stock_threshold')
           .eq('business_id', businessId)
           .order('name');
 
@@ -76,6 +98,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           'id': id,
           'name': product['name'].toString(),
           'unit': product['unit'].toString(),
+          'threshold': product['low_stock_threshold'],
           'quantity': stockByProduct[id] ?? 0,
         };
       }).toList();
@@ -294,7 +317,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            for (final item in _items)
+                            TextField(
+                              decoration: const InputDecoration(
+                                hintText: 'Search products',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              onChanged: (v) => setState(() => _query = v),
+                            ),
+                            const SizedBox(height: 8),
+                            for (final item in _visibleItems)
                               Card(
                                 child: Padding(
                                   padding: const EdgeInsets.all(14),
@@ -339,24 +370,42 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                                       ),
                                                 ),
                                                 Text(
-                                                  'Available: ${item['quantity']} ${item['unit']}',
+                                                  'Unit: ${item['unit']}',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                        color: (item['quantity']
-                                                                    as num) <=
-                                                                0
-                                                            ? Theme.of(context)
-                                                                .colorScheme
-                                                                .error
-                                                            : Theme.of(context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .onSurfaceVariant,
                                                       ),
                                                 ),
+                                                const SizedBox(height: 4),
+                                                _stockPill(item),
                                               ],
                                             ),
+                                          ),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                '${item['quantity']}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .headlineSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                              ),
+                                              Text(
+                                                '${item['unit']}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall,
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
