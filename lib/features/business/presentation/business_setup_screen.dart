@@ -118,7 +118,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Business name',
                           hintText: 'e.g. My Store',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.storefront_outlined),
                         ),
                         maxLength: 120,
                         validator: (value) =>
@@ -127,39 +127,53 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                             : null,
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _businessType,
-                        decoration: const InputDecoration(
-                          labelText: 'Business type',
-                          border: OutlineInputBorder(),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Business type',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'other',
-                            child: Text('Other'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'retail',
-                            child: Text('Retail / shop'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'services',
-                            child: Text('Services'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'wholesale',
-                            child: Text('Wholesale'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'ecommerce',
-                            child: Text('E-commerce'),
-                          ),
-                        ],
-                        onChanged: _busy
-                            ? null
-                            : (value) => setState(
-                                () => _businessType = value ?? 'other',
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final t in const [
+                            ['retail', 'Retail / shop', Icons.storefront_rounded],
+                            ['wholesale', 'Wholesale', Icons.warehouse_rounded],
+                            ['services', 'Services', Icons.handyman_rounded],
+                            ['ecommerce', 'E-commerce', Icons.shopping_cart_rounded],
+                            ['other', 'Other', Icons.category_rounded],
+                          ])
+                            ChoiceChip(
+                              avatar: Icon(
+                                t[2] as IconData,
+                                size: 18,
+                                color: _businessType == t[0]
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(context).colorScheme.primary,
                               ),
+                              label: Text(t[1] as String),
+                              selected: _businessType == t[0],
+                              showCheckmark: false,
+                              selectedColor: Theme.of(context).colorScheme.primary,
+                              labelStyle: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _businessType == t[0]
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(context).colorScheme.onSurface,
+                              ),
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(
+                                        () => _businessType = t[0] as String,
+                                      ),
+                            ),
+                        ],
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 12),
